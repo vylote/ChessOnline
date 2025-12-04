@@ -2,20 +2,10 @@ package controller;
 
 import java.util.ArrayList;
 
+import model.*;
 import view.GamePanel;
 
-import model.Bishop;
-import model.Board;
-import model.King;
-import model.Knight;
-import model.Pawn;
-import model.Piece;
-import model.Queen;
-import model.Rook;
-import model.Type;
-
 public class GameController implements Runnable {
-
     //  king's movements
     private static final int[][] DIRECTIONS = {
             { -1, -1 }, { -1, 0 }, { -1, 1 },
@@ -54,8 +44,24 @@ public class GameController implements Runnable {
 
     // --- CONSTRUCTOR ---
     public GameController() {
+        GameState.setState(State.MENU);
+
         setPieces();
         copyPieces(pieces, simPieces);
+    }
+
+    public void startNewGame() {
+
+        setPieces();
+        copyPieces(pieces, simPieces);
+
+        currentColor = WHITE;
+        isDraw = false;
+        gameOver = false;
+        isClickedToMove = false;
+        promotion = false;
+
+        resetTime();
 
         // Kiểm tra trạng thái hòa/khởi đầu
         if (isInsufficientMaterial() || isStaleMate()) {
@@ -64,6 +70,25 @@ public class GameController implements Runnable {
             isTimeRunning = false;
         } else {
             isTimeRunning = true;
+        }
+
+        GameState.setState(State.PLAYING);
+        if (gamePanel != null) gamePanel.repaint();
+    }
+
+    public void resumeGame() {
+        if (GameState.currentState == State.PAUSED) {
+            isTimeRunning = true;
+            GameState.setState(State.PLAYING);
+            if (gamePanel != null) gamePanel.repaint();
+        }
+    }
+
+    public void pauseGame() {
+        if (GameState.currentState == State.PLAYING) {
+            isTimeRunning = false;
+            GameState.setState(State.PAUSED);
+            if (gamePanel != null) gamePanel.repaint();
         }
     }
 
@@ -93,78 +118,8 @@ public class GameController implements Runnable {
     public int getTimeLeft() { return timeLeft; }
     public boolean isClickedToMove() { return isClickedToMove; }
     public ArrayList<int[]> getValidMoves() { return validMoves; }
-
-    // --- TEST AREA (giữ nguyên các test thế cờ của bạn) ---
-    public void testInsufficientMaterialDraw() {
-        pieces.clear();
-        // White
-        pieces.add(new King(WHITE, 7, 6));   // Vua G1
-        pieces.add(new Bishop(WHITE, 7, 5)); // Tượng F1 (sáng)
-        // Black
-        pieces.add(new King(BLACK, 0, 6));   // Vua G8
-        pieces.add(new Bishop(BLACK, 0, 5)); // Tượng F8 (sáng)
-        currentColor = WHITE;
-        copyPieces(pieces, simPieces);
-    }
-
-    public void testCustomCheckmate() {
-        pieces.clear();
-        pieces.add(new Rook(WHITE, 7, 1));
-        pieces.add(new King(WHITE, 7, 6));
-        pieces.add(new Pawn(WHITE, 6, 5));
-        pieces.add(new Pawn(WHITE, 6, 6));
-        pieces.add(new Pawn(WHITE, 6, 7));
-        pieces.add(new King(BLACK, 0, 6));
-        pieces.add(new Pawn(BLACK, 1, 5));
-        pieces.add(new Pawn(BLACK, 1, 6));
-        pieces.add(new Pawn(BLACK, 1, 7));
-        currentColor = WHITE;
-        copyPieces(pieces, simPieces);
-    }
-
-    public void testAnastasiasMate() {
-        pieces.clear();
-        pieces.add(new Knight(WHITE, 1, 4));
-        pieces.add(new Rook(WHITE, 5, 4));
-        pieces.add(new King(WHITE, 7, 6));
-        pieces.add(new King(BLACK, 1, 7));
-        pieces.add(new Pawn(BLACK, 1, 6));
-        currentColor = WHITE;
-        copyPieces(pieces, simPieces);
-    }
-
-    public void testBishopCheckmate1() {
-        pieces.clear();
-        pieces.add(new King(WHITE, 7, 6));
-        pieces.add(new Bishop(WHITE, 5, 6));
-        pieces.add(new King(BLACK, 0, 7));
-        pieces.add(new Pawn(BLACK, 1, 7));
-        pieces.add(new Bishop(BLACK, 0, 6));
-        currentColor = WHITE;
-        copyPieces(pieces, simPieces);
-    }
-
-    public void testKnightCheckmate() {
-        pieces.clear();
-        pieces.add(new King(WHITE, 7, 2));
-        pieces.add(new Rook(WHITE, 7, 6));
-        pieces.add(new Knight(WHITE, 3, 4));
-        pieces.add(new King(BLACK, 0, 7));
-        pieces.add(new Pawn(BLACK, 1, 7));
-        currentColor = WHITE;
-        copyPieces(pieces, simPieces);
-    }
-
-    public void testDoubleCheckmate() {
-        pieces.clear();
-        pieces.add(new King(WHITE, 7, 2));
-        pieces.add(new Bishop(WHITE, 4, 5));
-        pieces.add(new Bishop(WHITE, 5, 3));
-        pieces.add(new King(BLACK, 0, 2));
-        pieces.add(new Pawn(BLACK, 1, 3));
-        pieces.add(new Rook(BLACK, 0, 3));
-        currentColor = WHITE;
-        copyPieces(pieces, simPieces);
+    public boolean isTimeRunning() {
+        return isTimeRunning;
     }
 
     // --- GAME LOOP ---
@@ -190,6 +145,10 @@ public class GameController implements Runnable {
     }
 
     private void update() {
+        if (GameState.currentState != State.PLAYING) {
+            return;
+        }
+
         long currentTimeMillis = System.currentTimeMillis();
 
         if (!gameOver) {
@@ -319,28 +278,7 @@ public class GameController implements Runnable {
 
     // --- BASIC SETUP HELPERS ---
     public void setPieces() {
-        pieces.clear();
-        // white
-        for (int c = 0; c < 8; c++) pieces.add(new Pawn(WHITE, 6, c));
-        pieces.add(new Rook(WHITE, 7, 0));
-        pieces.add(new Rook(WHITE, 7, 7));
-        pieces.add(new Knight(WHITE, 7, 1));
-        pieces.add(new Knight(WHITE, 7, 6));
-        pieces.add(new Bishop(WHITE, 7, 2));
-        pieces.add(new Bishop(WHITE, 7, 5));
-        pieces.add(new King(WHITE, 7, 4));
-        pieces.add(new Queen(WHITE, 7, 3));
-
-        // black
-        for (int c = 0; c < 8; c++) pieces.add(new Pawn(BLACK, 1, c));
-        pieces.add(new Rook(BLACK, 0, 0));
-        pieces.add(new Rook(BLACK, 0, 7));
-        pieces.add(new Knight(BLACK, 0, 1));
-        pieces.add(new Knight(BLACK, 0, 6));
-        pieces.add(new Bishop(BLACK, 0, 2));
-        pieces.add(new Bishop(BLACK, 0, 5));
-        pieces.add(new King(BLACK, 0, 4));
-        pieces.add(new Queen(BLACK, 0, 3));
+        ChessSetupUtility.setupStandardGame(this.pieces);
     }
 
     /**

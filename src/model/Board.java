@@ -32,10 +32,13 @@ public class Board {
     private BufferedImage boardImage;
 
     // constant
-    final int MAX_COL = 8;
-    final int MAX_ROW = 8;
+    public static final int MAX_COL = 8;
+    public static final int MAX_ROW = 8;
     public static int SQUARE_SIZE = 100;
     public static final int HAFL_SQUARE_SIZE = SQUARE_SIZE / 2;
+
+    public static final int BOARD_WIDTH = MAX_COL * SQUARE_SIZE;
+    public static final int BOARD_HEIGHT = MAX_ROW * SQUARE_SIZE;
 
     public Board() {
         try {
