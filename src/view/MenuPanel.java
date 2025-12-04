@@ -8,9 +8,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage; // Cần import cho hình ảnh
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
 
-// GIẢ ĐỊNH: Lớp MenuPanel phải mở rộng JPanel (hoặc JComponent) để có thể gắn Listener
-public class MenuPanel extends JPanel { // *CẦN THÊM extends JPanel*
+public class MenuPanel extends JPanel {
 
     // Kích thước cửa sổ (Lấy từ GamePanel)
     private static final int WINDOW_WIDTH = 1200;
@@ -23,6 +26,9 @@ public class MenuPanel extends JPanel { // *CẦN THÊM extends JPanel*
     private final Rectangle settingsButton;
     private final Rectangle quitButton;
 
+    // NEW: Biến để lưu trữ hình ảnh nền
+    private BufferedImage backgroundImage;
+
     // --- HẰNG SỐ VẼ ---
     private static final int BUTTON_WIDTH = 250;
     private static final int BUTTON_HEIGHT = 60;
@@ -34,14 +40,23 @@ public class MenuPanel extends JPanel { // *CẦN THÊM extends JPanel*
     private static final int START_Y = (WINDOW_HEIGHT - TOTAL_HEIGHT) / 2;
 
 
-    // --- CONSTRUCTOR (Đã sửa lỗi biên dịch) ---
+    // --- CONSTRUCTOR ---
     public MenuPanel(GameController gc, JFrame containingFrame) {
         this.controller = gc;
         this.containingFrame = containingFrame;
 
+        // NEW: Tải hình ảnh nền
+        try {
+            // Thay đổi "res/menu_background.jpg" bằng đường dẫn file ảnh nền thực tế của bạn
+            backgroundImage = ImageIO.read(new File("res/bg/menu_bg.png"));
+        } catch (IOException e) {
+            System.err.println("Lỗi: Không thể tải hình ảnh nền cho Menu.");
+            e.printStackTrace();
+        }
+
         // Thiết lập kích thước cho Panel này
         setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
-        setLayout(null); // Giữ Layout đơn giản
+        setLayout(null);
 
         // Định vị các nút
         this.playButton = new Rectangle(CENTER_X, START_Y, BUTTON_WIDTH, BUTTON_HEIGHT);
@@ -49,23 +64,22 @@ public class MenuPanel extends JPanel { // *CẦN THÊM extends JPanel*
         this.settingsButton = new Rectangle(CENTER_X, START_Y + 2 * (BUTTON_HEIGHT + BUTTON_SPACING), BUTTON_WIDTH, BUTTON_HEIGHT);
         this.quitButton = new Rectangle(CENTER_X, START_Y + 3 * (BUTTON_HEIGHT + BUTTON_SPACING), BUTTON_WIDTH, BUTTON_HEIGHT);
 
-        // --- LOGIC XỬ LÝ CLICK (Sửa lỗi gp -> this) ---
-        this.addMouseListener(new MouseAdapter() { // Gắn MouseListener vào chính MenuPanel
+        // --- LOGIC XỬ LÝ CLICK ---
+        this.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseReleased(MouseEvent e) {
-                // Kiểm tra trạng thái Menu để đảm bảo không xử lý nhầm (dù Frame này chỉ xuất hiện ở trạng thái Menu)
                 if (GameState.currentState == State.MENU) {
                     int x = e.getX();
                     int y = e.getY();
 
                     if (playButton.contains(x, y)) {
-                        controller.startNewGame(); // Controller sẽ đóng Frame này
+                        controller.startNewGame();
                     } else if (loadButton.contains(x, y)) {
                         System.out.println("Load Game clicked (TBD)");
                     } else if (settingsButton.contains(x, y)) {
                         System.out.println("Settings clicked (TBD)");
                     } else if (quitButton.contains(x, y)) {
-                        containingFrame.dispose(); // Đóng Frame chứa Menu
+                        containingFrame.dispose();
                         System.exit(0);
                     }
                 }
@@ -73,20 +87,31 @@ public class MenuPanel extends JPanel { // *CẦN THÊM extends JPanel*
         });
     }
 
-    // --- PHƯƠNG THỨC VẼ (paintComponent cần được gọi để vẽ) ---
+    // --- PHƯƠNG THỨC VẼ ---
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
-        draw(g2); // Gọi hàm draw chính
+        draw(g2);
     }
 
     public void draw(Graphics2D g2) {
-        // 1. Vẽ nền mờ che toàn bộ cửa sổ
-        g2.setColor(new Color(0, 0, 0, 180));
+
+        // BƯỚC 1: VẼ HÌNH ẢNH NỀN
+        if (backgroundImage != null) {
+            g2.drawImage(backgroundImage, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
+        } else {
+            // Nếu ảnh không tải được, vẽ nền đen như trước
+            g2.setColor(Color.BLACK);
+            g2.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        }
+
+        // BƯỚC 2: VẼ LỚP PHỦ MỜ (Overlay)
+        // Điều này giúp tiêu đề và nút dễ đọc hơn trên nền ảnh
+        g2.setColor(new Color(0, 0, 0, 100)); // Màu đen, độ trong suốt A=100
         g2.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        // 2. Vẽ tiêu đề (Sử dụng FontMetrics để căn giữa)
+        // 3. Vẽ tiêu đề (Sử dụng FontMetrics để căn giữa)
         g2.setColor(Color.WHITE);
         g2.setFont(new Font("Arial", Font.BOLD, 60));
         String title = "CHESS GAME";
@@ -95,7 +120,7 @@ public class MenuPanel extends JPanel { // *CẦN THÊM extends JPanel*
         int titleX = (WINDOW_WIDTH - titleWidth) / 2;
         g2.drawString(title, titleX, START_Y - 50);
 
-        // 3. Vẽ các nút
+        // 4. Vẽ các nút
         g2.setFont(new Font("Arial", Font.PLAIN, 24));
 
         drawButton(g2, playButton, "PLAY NEW GAME", Color.GREEN.darker());
