@@ -7,10 +7,11 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
-import java.awt.LayoutManager;
 
 import javax.swing.*;
 
@@ -39,6 +40,19 @@ public class GamePanel extends JPanel {
     public GamePanel(GameController controller) {
         this.controller = controller;
         this.mouse = controller.mouse;
+
+        // Đảm bảo GamePanel có thể nhận focus để lắng nghe sự kiện bàn phím
+        setFocusable(true);
+        requestFocusInWindow();
+        // --- BỔ SUNG KEY LISTENER ---
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    handleEscapeKey();
+                }
+            }
+        });
 
         // 1. Thiết lập Panel
         setPreferredSize(new Dimension(WIDTH, HEIGHT));
@@ -84,6 +98,21 @@ public class GamePanel extends JPanel {
                 // MouseReleased sẽ được xử lý trong MenuPanel/PausePanel nếu trạng thái tương ứng
             }
         });
+    }
+
+    private void handleEscapeKey() {
+        State currentState = GameState.currentState;
+
+        if (currentState == State.PLAYING) {
+            // Nếu đang chơi, tạm dừng game
+            controller.pauseGame();
+        } else if (currentState == State.PAUSED) {
+            // Nếu đang ở màn hình Pause, tiếp tục game (Resume)
+            controller.resumeGame();
+        } else if (currentState == State.MENU) {
+            // Nếu đang ở Menu, có thể chọn thoát chương trình (Tùy chọn)
+            // System.exit(0);
+        }
     }
 
     // --- VẼ GIAO DIỆN (VIEW) ---
