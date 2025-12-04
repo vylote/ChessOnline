@@ -1,9 +1,13 @@
 package controller;
 
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
 import model.*;
 import view.GamePanel;
+import view.MenuPauseFrame;
+
+import javax.swing.*;
 
 public class GameController implements Runnable {
     //  king's movements
@@ -50,6 +54,27 @@ public class GameController implements Runnable {
         copyPieces(pieces, simPieces);
     }
 
+    // Thêm các biến tham chiếu mới
+    private JFrame mainFrame; // Cần thiết lập trong hàm main của bạn
+    private JFrame uiFrame;
+
+    // --- Thêm Setters để thiết lập các Frame ---
+    public void setMainFrame(JFrame frame) { this.mainFrame = frame; }
+    public void setUiFrame(JFrame frame) { this.uiFrame = frame; }
+
+    public void exitToMenu() {
+        // 1. Đảm bảo trạng thái là MENU
+        GameState.setState(State.MENU);
+        isTimeRunning = false;
+
+        // 2. Ẩn MainFrame (cửa sổ game)
+        if (mainFrame != null) mainFrame.setVisible(false);
+
+        MenuPauseFrame newUiFrame = new MenuPauseFrame(this);
+        this.uiFrame = newUiFrame;
+        newUiFrame.setVisible(true);
+    }
+
     public void startNewGame() {
 
         setPieces();
@@ -73,22 +98,43 @@ public class GameController implements Runnable {
         }
 
         GameState.setState(State.PLAYING);
-        if (gamePanel != null) gamePanel.repaint();
+        // ĐÓNG UIFrame, MỞ MainFrame
+        if (uiFrame != null) uiFrame.dispose();
+        if (mainFrame != null) mainFrame.setVisible(true);
     }
 
     public void resumeGame() {
         if (GameState.currentState == State.PAUSED) {
             isTimeRunning = true;
             GameState.setState(State.PLAYING);
-            if (gamePanel != null) gamePanel.repaint();
+            // ĐÓNG UIFrame, HIỆN lại MainFrame
+            if (uiFrame != null) uiFrame.dispose();
+            if (mainFrame != null) mainFrame.setVisible(true);
         }
     }
 
+    // Biến lưu trữ ảnh chụp màn hình game
+    private BufferedImage gameSnapshot;
     public void pauseGame() {
         if (GameState.currentState == State.PLAYING) {
             isTimeRunning = false;
             GameState.setState(State.PAUSED);
-            if (gamePanel != null) gamePanel.repaint();
+            SwingUtilities.invokeLater(() -> {
+                // BƯỚC 1: CHỤP ẢNH TỪ GamePanel
+                if (gamePanel != null) {
+                    this.gameSnapshot = gamePanel.getGameSnapshot(); // Yêu cầu GamePanel chụp ảnh
+                }
+
+                // 2. Ẩn cửa sổ Game
+                if (mainFrame != null) mainFrame.setVisible(false);
+
+                // 3. YÊU CẦU UIFrame HOÁN ĐỔI sang PausePanel
+                if (uiFrame != null) {
+                    // Giả định uiFrame có hàm setPausePanel(snapshot)
+                    ((MenuPauseFrame)uiFrame).setPausePanel(this.gameSnapshot);
+                    uiFrame.setVisible(true);
+                }
+            });
         }
     }
 

@@ -11,6 +11,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 
 import javax.swing.*;
@@ -20,20 +21,21 @@ import controller.Mouse;
 import model.Board;
 import model.GameState;
 import model.Piece;
-import model.State; // Cần import model.State
+import model.State;
 
 public class GamePanel extends JPanel {
 
     // --- VIEW CONSTANTS ---
-    private static final int WIDTH = 1200;
-    private static final int HEIGHT = 800;
+    public static final int WIDTH = 1200; // Thay private thành public (hoặc dùng AppConstants)
+    public static final int HEIGHT = 800; // Thay private thành public
 
     // --- MVC COMPONENTS ---
     private final GameController controller;
     private final Mouse mouse;
-    private final MenuPanel menuPanel;      // NEW: Panel Menu
-    private final PausePanel pausePanel;    // NEW: Panel Pause
-    private final JButton pauseButton;      // NEW: Nút Pause
+    // Đã loại bỏ: private final MenuPanel menuPanel;
+    // Đã loại bỏ: private final PausePanel pausePanel;
+
+    private final JButton pauseButton;
     private static final int PAUSE_BUTTON_SIZE = 40;
 
     // --- CONSTRUCTOR ---
@@ -41,10 +43,10 @@ public class GamePanel extends JPanel {
         this.controller = controller;
         this.mouse = controller.mouse;
 
-        // Đảm bảo GamePanel có thể nhận focus để lắng nghe sự kiện bàn phím
         setFocusable(true);
         requestFocusInWindow();
-        // --- BỔ SUNG KEY LISTENER ---
+
+        // --- KEY LISTENER (Giữ nguyên) ---
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
@@ -57,32 +59,27 @@ public class GamePanel extends JPanel {
         // 1. Thiết lập Panel
         setPreferredSize(new Dimension(WIDTH, HEIGHT));
         setBackground(Color.BLACK);
+        setLayout(null); // Sử dụng NULL LAYOUT
 
-        // Sử dụng NULL LAYOUT để định vị nút Pause bằng tọa độ tuyệt đối
-        setLayout(null);
-
-        // 2. Khởi tạo các Panel View mới
-        this.menuPanel = new MenuPanel(controller, this);
-        this.pausePanel = new PausePanel(controller, this);
+        // 2. KHÔNG KHỞI TẠO MENU/PAUSE PANEL TẠI ĐÂY NỮA
 
         // 3. Tạo và thêm Nút Pause
-        pauseButton = new JButton("||"); // Sử dụng ký hiệu Pause
-        pauseButton.setFont(new Font("Arial", Font.BOLD, 14)); // Giảm cỡ chữ
-        pauseButton.setBackground(Color.WHITE); // Màu nền trắng
+        pauseButton = new JButton("||");
+        pauseButton.setFont(new Font("Arial", Font.BOLD, 14));
+        pauseButton.setBackground(Color.WHITE);
 
         int pauseX = WIDTH - PAUSE_BUTTON_SIZE;
-        int pauseY = 0;
-        // Đặt tọa độ tuyệt đối (Góc trên bên phải, ngoài bàn cờ)
+        int pauseY = 0; // 20px padding
         pauseButton.setBounds(pauseX, pauseY, PAUSE_BUTTON_SIZE, PAUSE_BUTTON_SIZE);
 
         pauseButton.addActionListener(e -> {
             if (GameState.currentState == State.PLAYING) {
-                controller.pauseGame(); // Gọi hàm Controller khi ấn Pause
+                controller.pauseGame(); // Gọi Controller để ẩn MainFrame, mở PauseFrame
             }
         });
         this.add(pauseButton);
 
-        // 4. Thêm listener (giữ nguyên logic input)
+        // 4. Thêm listener (Giữ nguyên)
         addMouseMotionListener(mouse);
         addMouseListener(new MouseAdapter() {
             @Override
@@ -91,11 +88,9 @@ public class GamePanel extends JPanel {
             }
             @Override
             public void mouseReleased(MouseEvent e) {
-                // Chỉ xử lý click-to-move khi game đang ở trạng thái PLAYING
                 if (GameState.currentState == State.PLAYING) {
                     controller.handleMouseRelease(e.getX(), e.getY());
                 }
-                // MouseReleased sẽ được xử lý trong MenuPanel/PausePanel nếu trạng thái tương ứng
             }
         });
     }
@@ -104,15 +99,11 @@ public class GamePanel extends JPanel {
         State currentState = GameState.currentState;
 
         if (currentState == State.PLAYING) {
-            // Nếu đang chơi, tạm dừng game
-            controller.pauseGame();
+            controller.pauseGame(); // Ẩn MainFrame, mở PauseFrame
         } else if (currentState == State.PAUSED) {
-            // Nếu đang ở màn hình Pause, tiếp tục game (Resume)
-            controller.resumeGame();
-        } else if (currentState == State.MENU) {
-            // Nếu đang ở Menu, có thể chọn thoát chương trình (Tùy chọn)
-            // System.exit(0);
+            controller.resumeGame(); // Đóng PauseFrame, hiện MainFrame
         }
+        // Khi ở MENU, Key Listener không cần thiết vì MenuFrame sẽ xử lý Input
     }
 
     // --- VẼ GIAO DIỆN (VIEW) ---
@@ -124,38 +115,30 @@ public class GamePanel extends JPanel {
         // 1. Vẽ Board luôn
         controller.getBoard().draw(g2);
 
-        // Ẩn/Hiện nút Pause dựa trên trạng thái
+        // Ẩn/Hiện nút Pause dựa trên trạng thái (Chỉ hiện khi chơi)
         pauseButton.setVisible(GameState.currentState == State.PLAYING);
 
-
         // 2. Điều hướng việc vẽ dựa trên trạng thái Game
-        switch (GameState.currentState) {
-            case MENU:
-                menuPanel.draw(g2); // Vẽ Menu chính
-                break;
-
-            case PLAYING:
-            case PAUSED:
-                // Vẽ các thành phần game (quân cờ, thời gian, check)
-                drawGame(g2);
-
-                if (GameState.currentState == State.PAUSED) {
-                    pausePanel.draw(g2); // Vẽ cửa sổ Tạm dừng lên trên
-                }
-                break;
-
-            case GAME_OVER:
-                // Vẽ game (để thấy thế cờ kết thúc)
-                drawGame(g2);
-                drawGameOver(g2); // Tách riêng logic vẽ Game Over
-                break;
+        if (GameState.currentState == State.MENU) {
+            // KHÔNG VẼ GÌ Ở ĐÂY, MenuFrame sẽ tự vẽ toàn bộ cửa sổ riêng
+            return;
         }
+
+        // Vẽ các thành phần game khi PLAYING, PAUSED, hoặc GAME_OVER
+        drawGame(g2);
+
+        if (GameState.currentState == State.GAME_OVER) {
+            // Khi game over, vẽ lớp phủ và thông báo
+            drawGameOver(g2);
+        }
+        // Khi PAUSED, GamePanel vẫn vẽ drawGame(), nhưng PauseFrame sẽ hiển thị lên trên
     }
 
     /**
      * Phương thức mới: Chứa toàn bộ logic vẽ quân cờ, nước đi, thời gian, và check.
      */
     private void drawGame(Graphics2D g2) {
+        // ... (Giữ nguyên logic drawGame hiện tại của bạn)
 
         Piece activeP = controller.getActiveP();
         ArrayList<Piece> simPieces = controller.getSimPieces();
@@ -190,10 +173,10 @@ public class GamePanel extends JPanel {
         g2.setFont(new Font("Arial", Font.PLAIN, 40));
 
         // --- Vẽ Thời gian ---
-        if (controller.isTimeRunning() && !controller.isGameOver()) {
+        if (GameState.currentState == State.PLAYING || GameState.currentState == State.PAUSED) {
             g2.setColor(Color.blue);
             String time = "Time left: " + controller.getTimeLeft();
-            g2.drawString(time, Board.BOARD_WIDTH + 10, 400); // Tùy chỉnh tọa độ X
+            g2.drawString(time, Board.BOARD_WIDTH + 10, 400);
         }
 
         // --- Vẽ Quân đang hoạt động (Luôn vẽ sau cùng) ---
@@ -217,7 +200,6 @@ public class GamePanel extends JPanel {
             int currentColor = controller.getCurrentColor();
             Piece checkingP = controller.getCheckingP();
 
-            // Vị trí cố định cho thông báo lượt đi/check (Cập nhật tọa độ X)
             int textX = Board.BOARD_WIDTH + 10;
 
             if (currentColor == GameController.WHITE) {
@@ -256,6 +238,8 @@ public class GamePanel extends JPanel {
      * Phương thức mới: Chứa logic vẽ màn hình kết thúc game.
      */
     private void drawGameOver(Graphics2D g2) {
+        // ... (Giữ nguyên logic drawGameOver hiện tại của bạn)
+
         String s;
         g2.setFont(new Font("Arial", Font.PLAIN, 100));
 
@@ -269,7 +253,6 @@ public class GamePanel extends JPanel {
             g2.drawString(s, 280, 430);
         } else {
             g2.setColor(Color.green);
-            // Người thắng là người KHÔNG có lượt đi hiện tại khi game kết thúc
             if (controller.getCurrentColor() == GameController.BLACK) {
                 s = "white is the winner!";
             } else {
@@ -277,5 +260,17 @@ public class GamePanel extends JPanel {
             }
             g2.drawString(s, 150, 420);
         }
+    }
+    public BufferedImage getGameSnapshot() {
+        // Tạo một BufferedImage với kích thước của GamePanel
+        BufferedImage image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = image.createGraphics();
+
+        // Yêu cầu GamePanel vẽ lên BufferedImage này
+        printAll(g2d); // Sử dụng printAll để vẽ cả Swing components (như nút Pause)
+        // Hoặc chỉ gọi paintComponent nếu bạn chỉ muốn vẽ nội dung Graphics2D
+
+        g2d.dispose();
+        return image;
     }
 }

@@ -1,28 +1,25 @@
 package controller;
 
-import javax.swing.JFrame;
-
-import view.GamePanel;
+import javax.swing.SwingUtilities; // Cần import SwingUtilities
+import view.MainFrame;           // Cần import MainFrame
+import view.MenuPauseFrame;
 
 public class Main {
     public static void main(String[] args) {
-        JFrame window = new JFrame("Chess");
-        window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        window.setResizable(false);
 
-        // Khởi tạo Controller
-        GameController gc = new GameController();
+        // Luôn chạy giao diện người dùng trên Event Dispatch Thread (EDT)
+        SwingUtilities.invokeLater(() -> {
 
-        // Khởi tạo View và truyền Controller vào
-        GamePanel gp = new GamePanel(gc);
+            // 1. Khởi tạo Controller (Model Logic)
+            GameController gc = new GameController();
 
-        window.add(gp);
-        window.pack();
+            // 2. Khởi tạo MainFrame (Cửa sổ Game chính, ban đầu ẩn)
+            // Lớp này chứa GamePanel và được Controller điều khiển.
+            MainFrame mainFrame = new MainFrame(gc); // Tự động setVisible(false) bên trong
 
-        window.setLocationRelativeTo(null); // set up the screen at the center of your monitor
-        window.setVisible(true);
-
-        // Khởi chạy game từ Controller
-        gc.launchGame(gp);
+            MenuPauseFrame uiFrame = new MenuPauseFrame(gc);
+            uiFrame.setVisible(true);
+            gc.launchGame(mainFrame.getGamePanel());
+        });
     }
 }
