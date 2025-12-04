@@ -223,8 +223,8 @@ public class GameController implements Runnable {
                 } else {
                     // nếu không trong chiếu, bên đối thủ thắng vì bạn hết giờ
                     currentColor = (currentColor == WHITE) ? BLACK : WHITE;
-                    gameOver = true;
-                    isTimeRunning = false;
+                    resetTime();
+                    isTimeRunning = true;
                 }
             }
         }
