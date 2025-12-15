@@ -159,6 +159,7 @@ public class GamePanel extends JPanel {
 
                 ArrayList<int[]> validMoves = controller.getValidMoves();
                 for (int[] move : validMoves) {
+
                     g2.fillRect(move[0] * Board.SQUARE_SIZE, move[1] * Board.SQUARE_SIZE, Board.SQUARE_SIZE, Board.SQUARE_SIZE);
                 }
 
@@ -238,8 +239,6 @@ public class GamePanel extends JPanel {
      * Phương thức mới: Chứa logic vẽ màn hình kết thúc game.
      */
     private void drawGameOver(Graphics2D g2) {
-        // ... (Giữ nguyên logic drawGameOver hiện tại của bạn)
-
         String s;
         g2.setFont(new Font("Arial", Font.PLAIN, 100));
 

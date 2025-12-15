@@ -1,7 +1,7 @@
 package controller;
 
-import javax.swing.SwingUtilities; // Cần import SwingUtilities
-import view.MainFrame;           // Cần import MainFrame
+import javax.swing.SwingUtilities;
+import view.MainFrame;
 import view.MenuPauseFrame;
 
 public class Main {

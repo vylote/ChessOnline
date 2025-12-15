@@ -164,9 +164,6 @@ public class GameController implements Runnable {
     public int getTimeLeft() { return timeLeft; }
     public boolean isClickedToMove() { return isClickedToMove; }
     public ArrayList<int[]> getValidMoves() { return validMoves; }
-    public boolean isTimeRunning() {
-        return isTimeRunning;
-    }
 
     // --- GAME LOOP ---
     @Override
@@ -213,12 +210,6 @@ public class GameController implements Runnable {
         if (currentTimeMillis - lastSecond >= 1000 && isTimeRunning) {
             lastSecond = currentTimeMillis;
             timeLeft--;
-
-            // Nếu vua đang bị chiếu và là chiếu hết, game over
-            if (isCheckMate() && isKingInCheck()) {
-                gameOver = true;
-                isTimeRunning = false;
-            }
 
             if (timeLeft <= 0 && !promotion) {
                 // xử lý hết giờ: bên hiện tại thua nếu vua đang bị chiếu - theo nhiều luật cược/giải có thể khác
@@ -389,7 +380,7 @@ public class GameController implements Runnable {
         // Phục hồi
         piece.col = oldCol;
         piece.row = oldRow;
-        if (removed && captured != null) {
+        if (removed) {
             simPieces.add(captured);
         }
 
