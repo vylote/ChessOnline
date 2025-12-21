@@ -19,8 +19,6 @@ public class MenuPauseFrame extends JFrame {
         setLocationRelativeTo(null);
         setResizable(false);
 
-        // 1. Khởi tạo các Panel UI
-        // Lưu ý: Các Panel này sẽ nhận tham chiếu đến chính Frame này (this)
         this.menuPanel = new MenuPanel(controller, this);
         this.pausePanel = new PausePanel(controller, this);
 

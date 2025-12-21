@@ -1,12 +1,15 @@
 package controller;
 
 import java.awt.image.BufferedImage;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.io.*;
 
 import model.*;
 import view.GamePanel;
 import view.MenuPauseFrame;
-
 import javax.swing.*;
 
 public class GameController implements Runnable {
@@ -423,7 +426,6 @@ public class GameController implements Runnable {
         int selCol = mouse.x / Board.SQUARE_SIZE;
         int selRow = mouse.y / Board.SQUARE_SIZE;
 
-        // Giả sử logic hiển thị promoPieces đã được xử lý ở View
         for (Piece p : promoPieces) {
             if (p.col == selCol && p.row == selRow) {
                 Piece newP = null;
@@ -461,5 +463,62 @@ public class GameController implements Runnable {
             return simPieces.stream().anyMatch(p -> p.type == Type.BISHOP || p.type == Type.KNIGHT);
         }
         return false;
+    }
+
+    public void saveGame() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame.dat"))) {
+            // Tạo đối tượng lưu trữ
+            SaveData data = new SaveData(this.pieces, this.currentColor, this.timeLeft);
+            oos.writeObject(data);
+
+            JOptionPane.showMessageDialog(null, "Game Saved Successfully!");
+        } catch (IOException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error saving game!");
+        }
+    }
+
+    public void loadGame() {
+        File saveFile = new File("savegame.dat");
+        if (!saveFile.exists()) return;
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(saveFile))) {
+            SaveData data = (SaveData) ois.readObject();
+
+            this.pieces.clear();
+            this.pieces.addAll(data.pieces);
+            this.currentColor = data.currentColor;
+            this.timeLeft = data.timeLeft;
+
+            // NẠP LẠI ẢNH: Sử dụng đúng logic đường dẫn của bạn
+            for (Piece p : this.pieces) {
+                p.image = reloadPieceImage(p);
+            }
+
+            copyPieces(this.pieces, simPieces);
+            GameState.setState(State.PLAYING);
+            isTimeRunning = true;
+
+            if (uiFrame != null) uiFrame.dispose();
+            if (mainFrame != null) {
+                mainFrame.setVisible(true);
+                gamePanel.repaint();
+            }
+            JOptionPane.showMessageDialog(null, "Load thành công!");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Hàm này mô phỏng lại logic trong Constructor của các quân cờ (King, Queen, Pawn...)
+    private BufferedImage reloadPieceImage(Piece p) {
+        String prefix = (p.color == WHITE) ? "w" : "b";
+        String typeName = p.type.toString().toLowerCase();
+
+        // Chuyển đổi typeName để khớp với tên file (Ví dụ: KING -> King)
+        typeName = typeName.substring(0, 1).toUpperCase() + typeName.substring(1);
+
+        // Đường dẫn phải khớp với hàm getImage("/piece/...") trong lớp King
+        return p.getImage("/piece/" + prefix + typeName);
     }
 }

@@ -38,7 +38,7 @@ public class Board {
     public static final int HAFL_SQUARE_SIZE = SQUARE_SIZE / 2;
 
     public static final int BOARD_WIDTH = MAX_COL * SQUARE_SIZE;
-    public static final int BOARD_HEIGHT = MAX_ROW * SQUARE_SIZE;
+
 
     public Board() {
         try {

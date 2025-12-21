@@ -61,7 +61,7 @@ public class PausePanel extends JPanel { // Must extend JPanel to be added to a 
                         // Controller sẽ đóng PauseFrame và mở MainFrame
                         controller.resumeGame();
                     } else if (saveButton.contains(x, y)) {
-                        System.out.println("Save Game clicked (TBD)");
+                        controller.saveGame();
                     } else if (exitButton.contains(x, y)) {
                         GameState.setState(State.MENU);
                         controller.exitToMenu();

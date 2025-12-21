@@ -39,7 +39,6 @@ public class MenuPanel extends JPanel {
     private static final int TOTAL_HEIGHT = 4 * BUTTON_HEIGHT + 3 * BUTTON_SPACING;
     private static final int START_Y = (WINDOW_HEIGHT - TOTAL_HEIGHT) / 2;
 
-
     // --- CONSTRUCTOR ---
     public MenuPanel(GameController gc, JFrame containingFrame) {
         this.controller = gc;
@@ -75,7 +74,7 @@ public class MenuPanel extends JPanel {
                     if (playButton.contains(x, y)) {
                         controller.startNewGame();
                     } else if (loadButton.contains(x, y)) {
-                        System.out.println("Load Game clicked (TBD)");
+                        controller.loadGame();
                     } else if (settingsButton.contains(x, y)) {
                         System.out.println("Settings clicked (TBD)");
                     } else if (quitButton.contains(x, y)) {

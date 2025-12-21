@@ -3,15 +3,17 @@ package model;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.Serializable;
 
 import javax.imageio.ImageIO;
 
 import controller.GameController;
 
-public class Piece {
+public abstract class Piece implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     public Type type;
-    public BufferedImage image;
+    public transient BufferedImage image;
     public int x, y;
     public int row, col, preRow, preCol;
     public int color;
