@@ -98,14 +98,15 @@ public class GamePanel extends JPanel {
         controller.getBoard().draw(g2);
 
         // Cập nhật trạng thái nút Pause
-        pauseButton.setVisible(GameState.currentState == State.PLAYING);
+        pauseButton.setVisible(GameState.currentState == State.PLAYING && !controller.isGameOver());
 
         if (GameState.currentState == State.MENU) return;
 
-        // Vẽ logic Game chính
+        // Vẽ logic Game chính (Quân cờ, thời gian, highlight)
         drawGame(g2);
 
-        if (GameState.currentState == State.GAME_OVER) {
+        // KIỂM TRA KẾT THÚC GAME
+        if (controller.isGameOver()) {
             drawGameOver(g2);
         }
     }
@@ -206,18 +207,39 @@ public class GamePanel extends JPanel {
     }
 
     private void drawGameOver(Graphics2D g2) {
-        g2.setColor(new Color(0, 0, 0, 180));
+        // Vẽ lớp phủ mờ
+        g2.setColor(new Color(0, 0, 0, 200));
         g2.fillRect(0, 0, WIDTH, HEIGHT);
 
-        g2.setFont(new Font("Arial", Font.BOLD, 80));
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        // ƯU TIÊN KIỂM TRA HÒA TRƯỚC
         if (controller.isDraw()) {
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.drawString("DRAW", WIDTH / 4, HEIGHT / 2);
-        } else {
-            g2.setColor(Color.GREEN);
-            String winner = (controller.getCurrentColor() == GameController.BLACK) ? "WHITE" : "BLACK";
-            g2.drawString(winner + " WINS!", WIDTH / 6, HEIGHT / 2);
+            g2.setFont(new Font("Arial", Font.BOLD, 70));
+            g2.setColor(Color.YELLOW); // Màu vàng cho kết quả hòa
+            String msg = "DRAW: INSUFFICIENT MATERIAL";
+            g2.drawString(msg, getXforCenteredText(msg, g2), HEIGHT / 2);
         }
+        // NẾU KHÔNG HÒA MỚI TÍNH ĐẾN THẮNG/THUA
+        else {
+            g2.setFont(new Font("Arial", Font.BOLD, 80));
+            g2.setColor(Color.GREEN);
+
+            // Logic xác định người thắng: Nếu đang là lượt Trắng mà bị chiếu hết -> Đen thắng
+            String winner = (controller.getCurrentColor() == GameController.WHITE) ? "BLACK" : "WHITE";
+            String msg = winner + " WINS!";
+            g2.drawString(msg, getXforCenteredText(msg, g2), HEIGHT / 2);
+        }
+
+        g2.setFont(new Font("Arial", Font.PLAIN, 20));
+        g2.setColor(Color.WHITE);
+        g2.drawString("Press ESC to return to Menu", getXforCenteredText("Press ESC to return to Menu", g2), HEIGHT / 2 + 80);
+    }
+
+    // Hàm hỗ trợ căn giữa văn bản
+    private int getXforCenteredText(String text, Graphics2D g2) {
+        int length = (int) g2.getFontMetrics().getStringBounds(text, g2).getWidth();
+        return WIDTH / 2 - length / 2;
     }
 
     public BufferedImage getGameSnapshot() {

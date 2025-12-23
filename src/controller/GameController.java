@@ -71,22 +71,29 @@ public class GameController implements Runnable {
         setPieces();
         copyPieces(pieces, simPieces);
 
+        // Reset trạng thái quan trọng
         currentColor = WHITE;
-        isDraw = false;
+        isDraw = false;  // <--- Phải reset ở đây
         gameOver = false;
         isClickedToMove = false;
         promotion = false;
         resetTime();
 
-        if (isInsufficientMaterial() || isStaleMate()) {
+        // Kiểm tra ngay thế cờ vừa nạp
+        if (isInsufficientMaterial()) {
             isDraw = true;
             gameOver = true;
             isTimeRunning = false;
+            GameState.currentState = State.GAME_OVER;
+        } else if (isStaleMate() || (isKingInCheck() && isCheckMate())) {
+            gameOver = true;
+            isTimeRunning = false;
+            GameState.currentState = State.GAME_OVER;
         } else {
             isTimeRunning = true;
+            GameState.currentState = State.PLAYING;
         }
 
-        GameState.setState(State.PLAYING);
         if (uiFrame != null) uiFrame.dispose();
         if (mainFrame != null) mainFrame.setVisible(true);
     }
@@ -168,28 +175,41 @@ public class GameController implements Runnable {
     private void update() {
         if (GameState.currentState != State.PLAYING || gameOver) return;
 
-        long currentTimeMillis = System.currentTimeMillis();
-
-        // Kiểm tra hòa ngay lập tức
-        if (isInsufficientMaterial() || isStaleMate()) {
+        // 1. PRIORITY CHECK: Insufficient Material (Immediate Draw)
+        if (isInsufficientMaterial()) {
             isDraw = true;
             gameOver = true;
             isTimeRunning = false;
+            GameState.currentState = State.GAME_OVER; // Force state change
             return;
         }
 
-        // Cập nhật đồng hồ
+        // 2. Stalemate Check
+        if (isStaleMate()) {
+            isDraw = true;
+            gameOver = true;
+            isTimeRunning = false;
+            GameState.currentState = State.GAME_OVER;
+            return;
+        }
+
+        long currentTimeMillis = System.currentTimeMillis();
+
+        // Timer logic...
         if (currentTimeMillis - lastSecond >= 1000 && isTimeRunning) {
             lastSecond = currentTimeMillis;
             timeLeft--;
 
-            if (timeLeft <= 0 && !promotion) {
-                if (isKingInCheck()) {
+            if (timeLeft <= 0) {
+                if (promotion) {
+                    autoPromoteOnTimeout();
+                } else if (isKingInCheck()) {
                     gameOver = true;
                     isTimeRunning = false;
+                    GameState.currentState = State.GAME_OVER;
+                    JOptionPane.showMessageDialog(null, "Hết giờ khi bị chiếu! Người thắng: " + (currentColor == WHITE ? "Đen" : "Trắng"));
                 } else {
-                    currentColor = (currentColor == WHITE) ? BLACK : WHITE;
-                    resetTime();
+                    finalizeTurn();
                 }
             }
         }
@@ -199,6 +219,54 @@ public class GameController implements Runnable {
         } else {
             handleMouseInput();
         }
+    }
+
+    private void autoPromoteOnTimeout() {
+        // Thứ tự ưu tiên: Queen -> Rook -> Knight -> Bishop
+        Type[] priority = {Type.QUEEN, Type.ROOK, Type.KNIGHT, Type.BISHOP};
+        Piece selectedPiece = null;
+
+        for (Type type : priority) {
+            for (Piece p : promoPieces) {
+                if (p.type == type) {
+                    selectedPiece = p;
+                    break;
+                }
+            }
+            if (selectedPiece != null) break;
+        }
+
+        if (selectedPiece != null) {
+            replacePawnAndFinish(selectedPiece);
+            System.out.println("Hết giờ! Tự động phong cấp thành: " + selectedPiece.type);
+        } else {
+            // Trường hợp không mất quân nào (promoPieces trống) -> Kết thúc lượt, giữ nguyên quân tốt
+            promotion = false;
+            finalizeTurn();
+        }
+    }
+
+    private void replacePawnAndFinish(Piece p) {
+        Piece newP = null;
+        int r = activeP.row;
+        int c = activeP.col;
+
+        switch (p.type) {
+            case QUEEN:  newP = new Queen(currentColor, r, c); break;
+            case ROOK:   newP = new Rook(currentColor, r, c); break;
+            case BISHOP: newP = new Bishop(currentColor, r, c); break;
+            case KNIGHT: newP = new Knight(currentColor, r, c); break;
+        }
+
+        if (newP != null) {
+            newP.image = reloadPieceImage(newP);
+            newP.updatePosition();
+            simPieces.remove(activeP);
+            simPieces.add(newP);
+            copyPieces(simPieces, pieces);
+        }
+        promotion = false;
+        finalizeTurn();
     }
 
     private void handleMouseInput() {
@@ -226,6 +294,7 @@ public class GameController implements Runnable {
 
                 if (isMove) {
                     simulateClickToMove(col, row);
+                    activeP.finishMove();
                     copyPieces(simPieces, pieces);
                     activeP.updatePosition();
                     if (castlingP != null) castlingP.updatePosition();
@@ -287,6 +356,15 @@ public class GameController implements Runnable {
 
     public void setPieces() {
         ChessSetupUtility.setupStandardGame(this.pieces);
+
+        // 2. Khởi tạo hình ảnh và tọa độ pixel cho từng quân cờ vừa nạp
+        for (Piece p : this.pieces) {
+            p.image = reloadPieceImage(p); // Nạp ảnh dựa trên loại quân và màu
+            p.updatePosition();            // Tính toán tọa độ x, y từ col, row
+        }
+
+        // 3. Cập nhật trạng thái chiếu tướng ban đầu cho thế cờ
+        isKingInCheck();
     }
 
     public void copyPieces(ArrayList<Piece> src, ArrayList<Piece> tgt) {
@@ -418,32 +496,66 @@ public class GameController implements Runnable {
 
     private boolean canPromote() {
         if (activeP == null || activeP.type != Type.PAWN) return false;
-        return (currentColor == WHITE && activeP.row == 0) || (currentColor == BLACK && activeP.row == 7);
+
+        if ((activeP.color == WHITE && activeP.row == 0) || (activeP.color == BLACK && activeP.row == 7)) {
+            promoPieces.clear();
+            int color = activeP.color;
+
+            // Kiểm tra số lượng quân hiện có trên bàn cờ để xác định quân đã mất
+            long queens = simPieces.stream().filter(p -> p.color == color && p.type == Type.QUEEN).count();
+            long rooks = simPieces.stream().filter(p -> p.color == color && p.type == Type.ROOK).count();
+            long bishops = simPieces.stream().filter(p -> p.color == color && p.type == Type.BISHOP).count();
+            long knights = simPieces.stream().filter(p -> p.color == color && p.type == Type.KNIGHT).count();
+
+            // Nạp vào danh sách theo thứ tự ưu tiên hiển thị (Hậu, Mã, Xe, Tượng hoặc tùy bạn)
+            if (queens < 1) promoPieces.add(new Queen(color, 2, 9));
+            if (rooks < 2) promoPieces.add(new Rook(color, 4, 9));
+            if (knights < 2) promoPieces.add(new Knight(color, 3, 9));
+            if (bishops < 2) promoPieces.add(new Bishop(color, 5, 9));
+
+            if (promoPieces.isEmpty()) return false; // Không mất quân nào thì không phong cấp
+
+            for (Piece p : promoPieces) p.image = reloadPieceImage(p);
+            return true;
+        }
+        return false;
     }
 
     private void promoting() {
         if (!mouse.released) return;
+
         int selCol = mouse.x / Board.SQUARE_SIZE;
         int selRow = mouse.y / Board.SQUARE_SIZE;
 
         for (Piece p : promoPieces) {
+            // Kiểm tra click vào Menu bên phải (col 9)
             if (p.col == selCol && p.row == selRow) {
                 Piece newP = null;
-                if (p.type == Type.ROOK) newP = new Rook(currentColor, activeP.col, activeP.row);
-                if (p.type == Type.QUEEN) newP = new Queen(currentColor, activeP.col, activeP.row);
-                if (p.type == Type.BISHOP) newP = new Bishop(currentColor, activeP.col, activeP.row);
-                if (p.type == Type.KNIGHT) newP = new Knight(currentColor, activeP.col, activeP.row);
+                int targetCol = activeP.col;
+                int targetRow = activeP.row;
+
+                switch (p.type) {
+                    case QUEEN:  newP = new Queen(activeP.color, targetRow, targetCol); break;
+                    case ROOK:   newP = new Rook(activeP.color, targetRow, targetCol); break;
+                    case BISHOP: newP = new Bishop(activeP.color, targetRow, targetCol); break;
+                    case KNIGHT: newP = new Knight(activeP.color, targetRow, targetCol); break;
+                }
 
                 if (newP != null) {
+                    newP.image = reloadPieceImage(newP); // Nạp ảnh cho quân mới
+                    newP.updatePosition(); // Tính toán x, y để vẽ lên màn hình
+
                     simPieces.remove(activeP);
                     simPieces.add(newP);
                     copyPieces(simPieces, pieces);
+
                     promotion = false;
-                    finalizeTurn();
+                    finalizeTurn(); // Chuyển lượt và chạy lại thời gian
                 }
                 break;
             }
         }
+        mouse.released = false; // Reset chuột
     }
 
     private void changePlayer() {
@@ -454,14 +566,45 @@ public class GameController implements Runnable {
     }
 
     private boolean isInsufficientMaterial() {
-        if (simPieces.size() > 4) return false;
+        // Nếu còn Tốt, Xe hoặc Hậu thì vẫn có khả năng chiếu bí
         for (Piece p : simPieces) {
-            if (p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN) return false;
+            if (p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN) {
+                return false;
+            }
         }
-        if (simPieces.size() == 2) return true; // K vs K
-        if (simPieces.size() == 3) { // K + (N or B) vs K
+
+        int totalPieces = simPieces.size();
+
+        // Trường hợp 1: Vua vs Vua (Tổng cộng 2 quân)
+        if (totalPieces == 2) return true;
+
+        // Trường hợp 2 & 3: Vua + Tượng vs Vua HOẶC Vua + Mã vs Vua (Tổng cộng 3 quân)
+        if (totalPieces == 3) {
             return simPieces.stream().anyMatch(p -> p.type == Type.BISHOP || p.type == Type.KNIGHT);
         }
+
+        // Trường hợp 4: Vua + Tượng vs Vua + Tượng CÙNG MÀU Ô (Tổng cộng 4 quân)
+        if (totalPieces == 4) {
+            Piece whiteBishop = null;
+            Piece blackBishop = null;
+
+            for (Piece p : simPieces) {
+                if (p.type == Type.BISHOP) {
+                    if (p.color == WHITE) whiteBishop = p;
+                    else blackBishop = p;
+                }
+            }
+
+            // Nếu cả hai bên đều còn 1 Tượng, kiểm tra màu ô của chúng
+            if (whiteBishop != null && blackBishop != null) {
+                boolean whiteBishopIsLight = (whiteBishop.col + whiteBishop.row) % 2 != 0;
+                boolean blackBishopIsLight = (blackBishop.col + blackBishop.row) % 2 != 0;
+
+                // Nếu cùng là ô sáng hoặc cùng là ô tối -> Hòa ngay
+                return whiteBishopIsLight == blackBishopIsLight;
+            }
+        }
+
         return false;
     }
 
