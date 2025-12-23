@@ -42,6 +42,8 @@ public class GamePanel extends JPanel {
         pauseButton.setBackground(Color.WHITE);
         pauseButton.setFocusable(false); // Tránh cướp focus của KeyListener
 
+        pauseButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
         int pauseX = WIDTH - PAUSE_BUTTON_SIZE - 10;
         int pauseY = 10;
         pauseButton.setBounds(pauseX, pauseY, PAUSE_BUTTON_SIZE, PAUSE_BUTTON_SIZE);
