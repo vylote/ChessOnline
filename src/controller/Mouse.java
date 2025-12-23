@@ -18,10 +18,6 @@ public class Mouse extends MouseAdapter {
 
     public void mouseReleased(MouseEvent e) {
         pressed = false;
-
-        // XÓA DÒNG SAU: released = true;
-        // Lý do: Giá trị này sẽ được set trong controller.handleMouseRelease()
-        // và được đặt lại (reset) sau khi logic game đã xử lý xong.
     }
 
     public void mouseDragged(MouseEvent e) {

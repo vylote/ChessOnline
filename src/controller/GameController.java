@@ -604,48 +604,42 @@ public class GameController implements Runnable {
         return false;
     }
 
-    public void saveGame() {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame.dat"))) {
-            // Tạo đối tượng lưu trữ
+    public void saveGame(int slot) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame_" + slot + ".dat"))) {
             SaveData data = new SaveData(this.pieces, this.currentColor, this.timeLeft);
             oos.writeObject(data);
-
-            JOptionPane.showMessageDialog(null, "Game Saved Successfully!");
-        } catch (IOException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error saving game!");
-        }
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
-    public void loadGame() {
-        File saveFile = new File("savegame.dat");
-        if (!saveFile.exists()) return;
-
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(saveFile))) {
+    public void loadGame(int slot) {
+        File file = new File("savegame_" + slot + ".dat");
+        if (!file.exists()) return;
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
             SaveData data = (SaveData) ois.readObject();
-
             this.pieces.clear();
             this.pieces.addAll(data.pieces);
             this.currentColor = data.currentColor;
             this.timeLeft = data.timeLeft;
-
-            // NẠP LẠI ẢNH: Sử dụng đúng logic đường dẫn của bạn
-            for (Piece p : this.pieces) {
-                p.image = reloadPieceImage(p);
-            }
-
+            for (Piece p : this.pieces) { p.image = reloadPieceImage(p); p.updatePosition(); }
             copyPieces(this.pieces, simPieces);
             GameState.setState(State.PLAYING);
             isTimeRunning = true;
-
             if (uiFrame != null) uiFrame.dispose();
-            if (mainFrame != null) {
-                mainFrame.setVisible(true);
-                gamePanel.repaint();
-            }
-            JOptionPane.showMessageDialog(null, "Load thành công!");
+            if (mainFrame != null) { mainFrame.setVisible(true); gamePanel.repaint(); }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    public String getSlotMetadata(int slot) {
+        File file = new File("savegame_" + slot + ".dat");
+        if (!file.exists() || file.length() == 0) return "Empty Slot";
+
+        try (FileInputStream fis = new FileInputStream(file);
+             ObjectInputStream ois = new ObjectInputStream(fis)) {
+
+            SaveData data = (SaveData) ois.readObject();
+            return (data.saveTime != null) ? data.saveTime : "Unknown Date";
         } catch (Exception e) {
-            e.printStackTrace();
+            return "Corrupted Data";
         }
     }
 

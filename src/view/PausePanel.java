@@ -1,133 +1,262 @@
 package view;
 
 import controller.GameController;
-import model.GameState;
-import model.State;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import javax.swing.*;
 
-public class PausePanel extends JPanel { // Must extend JPanel to be added to a JFrame
+public class PausePanel extends JPanel {
 
-    // Kích thước cửa sổ (Lấy từ AppConstants hoặc giữ nguyên để tính toán)
+    private final GameController controller;
+    private BufferedImage backgroundSnapshot;
+
+    // --- CẤU HÌNH SỐ LƯỢNG SLOT ---
+    private static final int TOTAL_SLOTS = 5; // Ảnh mẫu có 5 slot
+
+    // --- HẰNG SỐ BỐ CỤC (Dựa trên kích thước 1200x800) ---
     private static final int WINDOW_WIDTH = 1200;
     private static final int WINDOW_HEIGHT = 800;
 
-    private final GameController controller;
-    private final JFrame containingFrame; // NEW: Tham chiếu đến JFrame chứa Panel này
-    private final Rectangle resumeButton;
-    private final Rectangle saveButton;
-    private final Rectangle exitButton;
+    // Vùng bên trái (Slots)
+    private final Rectangle[] slotBackgroundRects = new Rectangle[TOTAL_SLOTS];
+    // Chia mỗi slot thành 2 vùng click: nửa trên Save, nửa dưới Load
+    private final Rectangle[] saveClickRects = new Rectangle[TOTAL_SLOTS];
+    private final Rectangle[] loadClickRects = new Rectangle[TOTAL_SLOTS];
 
-    // --- HẰNG SỐ VẼ PANEL ---
-    private static final int PANEL_W = 350;
-    private static final int PANEL_H = 400;
-    private static final int BUTTON_W = 250;
-    private static final int BUTTON_H = 60;
+    // Vùng bên phải (Menu)
+    private final String[] menuItems = {"Continue", "Game settings", "Exit to menu"};
+    private final Rectangle[] menuRects = new Rectangle[menuItems.length];
 
-    // TÍNH TOÁN CĂN GIỮA TOÀN BỘ CỬA SỔ
-    private static final int CENTER_X = (WINDOW_WIDTH - PANEL_W) / 2;
-    private static final int CENTER_Y = (WINDOW_HEIGHT - PANEL_H) / 2;
-    private static final int BUTTON_DRAW_X = CENTER_X + (PANEL_W - BUTTON_W) / 2;
+    // --- TRẠNG THÁI HOVER ---
+    private int hoveredSlotIndex = -1;
+    private boolean isHoveringSave = false; // true nếu đang hover vùng Save, false nếu Load
+    private int hoveredMenuIndex = -1;
 
+    // Font chữ
+    private final Font numberFont = new Font("Arial", Font.BOLD, 50);
+    private final Font stateFont = new Font("Arial", Font.PLAIN, 22);
+    private final Font dateFont = new Font("Monospaced", Font.PLAIN, 20);
+    private final Font menuFont = new Font("Arial", Font.PLAIN, 28);
 
-    public PausePanel(GameController gc, JFrame containingFrame) { // SỬA: Nhận JFrame
+    public PausePanel(GameController gc, JFrame containingFrame) {
         this.controller = gc;
-        this.containingFrame = containingFrame; // LƯU THAM CHIẾU FRAME
-
-        // Thiết lập Panel để vẽ (Cần cho kiến trúc Frame mới)
         setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
+        setLayout(null);
 
-        // Định vị Y của các nút
-        int startButtonY = CENTER_Y + 100;
-        int buttonSpacing = 10;
+        initLayout();
 
-        resumeButton = new Rectangle(BUTTON_DRAW_X, startButtonY, BUTTON_W, BUTTON_H);
-        saveButton = new Rectangle(BUTTON_DRAW_X, startButtonY + BUTTON_H + buttonSpacing, BUTTON_W, BUTTON_H);
-        exitButton = new Rectangle(BUTTON_DRAW_X, startButtonY + 2 * (BUTTON_H + buttonSpacing), BUTTON_W, BUTTON_H);
+        // --- XỬ LÝ CHUỘT ---
+        MouseAdapter mouseHandler = new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                handleMouseHover(e.getX(), e.getY());
+            }
 
-        // --- LOGIC XỬ LÝ CLICK ---
-        // Gắn MouseListener vào chính PausePanel (vì nó là JPanel)
-        this.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseReleased(MouseEvent e) {
-                if (GameState.currentState == State.PAUSED) {
-                    int x = e.getX();
-                    int y = e.getY();
-
-                    if (resumeButton.contains(x, y)) {
-                        // Controller sẽ đóng PauseFrame và mở MainFrame
-                        controller.resumeGame();
-                    } else if (saveButton.contains(x, y)) {
-                        controller.saveGame();
-                    } else if (exitButton.contains(x, y)) {
-                        GameState.setState(State.MENU);
-                        controller.exitToMenu();
-                    }
-                }
+                handleMouseClick(e.getX(), e.getY());
             }
-        });
+        };
+        addMouseListener(mouseHandler);
+        addMouseMotionListener(mouseHandler);
     }
 
-    // --- PHƯƠNG THỨC VẼ ---
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        draw((Graphics2D) g);
+    /** Khởi tạo tọa độ cho các vùng vẽ và click */
+    private void initLayout() {
+        // 1. Setup khu vực Slots (Bên trái)
+        int slotX = 50;
+        int slotYStart = 100;
+        int slotWidth = 750;
+        int slotHeight = 110;
+        int slotSpacing = 20;
+        int numberBoxWidth = 100; // Chiều rộng hộp chứa số thứ tự
+
+        for (int i = 0; i < TOTAL_SLOTS; i++) {
+            int y = slotYStart + i * (slotHeight + slotSpacing);
+
+            // Vùng nền tổng thể của slot
+            slotBackgroundRects[i] = new Rectangle(slotX, y, slotWidth, slotHeight);
+
+            // Vùng chứa text Save/Load (bên phải số thứ tự)
+            int textAreaX = slotX + numberBoxWidth;
+            int textAreaWidth = slotWidth - numberBoxWidth;
+
+            // Chia đôi chiều cao cho vùng Save (trên) và Load (dưới)
+            saveClickRects[i] = new Rectangle(textAreaX, y, textAreaWidth, slotHeight / 2);
+            loadClickRects[i] = new Rectangle(textAreaX, y + slotHeight / 2, textAreaWidth, slotHeight / 2);
+        }
+
+        // 2. Setup khu vực Menu (Bên phải)
+        int menuX = 850;
+        int menuYStart = 100;
+        int menuItemHeight = 50;
+        int menuSpacing = 40;
+
+        for (int i = 0; i < menuItems.length; i++) {
+            int y = menuYStart + i * (menuItemHeight + menuSpacing);
+            // Tạo vùng click rộng để dễ bấm
+            menuRects[i] = new Rectangle(menuX, y, 300, menuItemHeight);
+        }
     }
 
-    // SỬA: Bổ sung field lưu ảnh nền
-    private BufferedImage backgroundSnapshot;
-
-    // SỬA: Thêm setter để nhận ảnh từ MenuPauseFrame
     public void setBackgroundSnapshot(BufferedImage snapshot) {
         this.backgroundSnapshot = snapshot;
     }
 
-    public void draw(Graphics2D g2) {
-        // BƯỚC 1: VẼ ẢNH CHỤP LÀM NỀN
-        if (backgroundSnapshot != null) {
-            // Sử dụng kích thước toàn bộ cửa sổ UI
-            g2.drawImage(backgroundSnapshot, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
+    private void handleMouseHover(int x, int y) {
+        hoveredSlotIndex = -1;
+        hoveredMenuIndex = -1;
+        isHoveringSave = false;
+
+        // Kiểm tra hover slots
+        for (int i = 0; i < TOTAL_SLOTS; i++) {
+            if (saveClickRects[i].contains(x, y)) {
+                hoveredSlotIndex = i;
+                isHoveringSave = true;
+                break;
+            } else if (loadClickRects[i].contains(x, y)) {
+                hoveredSlotIndex = i;
+                isHoveringSave = false;
+                break;
+            }
         }
 
-        // 1. Vẽ nền mờ che TOÀN BỘ cửa sổ
-        g2.setColor(new Color(2, 2, 2, 200));
-        g2.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        // Kiểm tra hover menu phải
+        if (hoveredSlotIndex == -1) {
+            for (int i = 0; i < menuItems.length; i++) {
+                if (menuRects[i].contains(x, y)) {
+                    hoveredMenuIndex = i;
+                    break;
+                }
+            }
+        }
 
-        // 2. Vẽ khung cửa sổ Pause ở giữa
-        g2.setColor(new Color(203, 203, 203, 0));
-        g2.fillRect(CENTER_X, CENTER_Y, PANEL_W, PANEL_H);
-
-        // 3. Vẽ tiêu đề (Sử dụng FontMetrics để căn giữa)
-        g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Arial", Font.BOLD, 40));
-        String title = "PAUSED";
-        FontMetrics fm = g2.getFontMetrics();
-        int titleWidth = fm.stringWidth(title);
-        // Căn giữa theo PANEL_W
-        int titleX = CENTER_X + (PANEL_W - titleWidth) / 2;
-        g2.drawString(title, titleX, CENTER_Y + 60);
-
-        // 4. Vẽ các nút
-        g2.setFont(new Font("Arial", Font.PLAIN, 24));
-
-        drawButton(g2, resumeButton, "CONTINUE", Color.GREEN.darker());
-        drawButton(g2, saveButton, "SAVE GAME", Color.YELLOW.darker());
-        drawButton(g2, exitButton, "EXIT TO MENU", Color.RED.darker());
+        // --- THAY ĐỔI CON CHUỘT TẠI ĐÂY ---
+        if (hoveredSlotIndex != -1 || hoveredMenuIndex != -1) {
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        } else {
+            setCursor(Cursor.getDefaultCursor());
+        }
+        repaint();
     }
 
-    private void drawButton(Graphics2D g2, Rectangle rect, String text, Color color) {
-        g2.setColor(color);
-        g2.fill(rect);
-        g2.setColor(Color.WHITE);
-        g2.draw(rect);
+    private void handleMouseClick(int x, int y) {
+        // Xử lý click Slot
+        for (int i = 0; i < TOTAL_SLOTS; i++) {
+            int slotNum = i + 1;
+            if (saveClickRects[i].contains(x, y)) {
+                controller.saveGame(slotNum);
+                repaint(); // Cập nhật lại ngày giờ sau khi lưu
+                return;
+            } else if (loadClickRects[i].contains(x, y)) {
+                controller.loadGame(slotNum);
+                return;
+            }
+        }
 
+        // Xử lý click Menu phải
+        if (menuRects[0].contains(x, y)) controller.resumeGame();
+        else if (menuRects[1].contains(x, y)) System.out.println("Settings clicked");
+        else if (menuRects[2].contains(x, y)) controller.exitToMenu();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // 1. Vẽ nền game và lớp phủ tối
+        if (backgroundSnapshot != null) {
+            g2.drawImage(backgroundSnapshot, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
+        }
+        g2.setColor(new Color(0, 0, 0, 180)); // Lớp phủ màu đen bán trong suốt
+        g2.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        // 2. Vẽ các Slots bên trái
+        for (int i = 0; i < TOTAL_SLOTS; i++) {
+            drawSlot(g2, i);
+        }
+
+        // 3. Vẽ Menu bên phải
+        drawRightMenu(g2);
+    }
+
+    private void drawSlot(Graphics2D g2, int index) {
+        Rectangle bgRect = slotBackgroundRects[index];
+        Rectangle saveRect = saveClickRects[index];
+        Rectangle loadRect = loadClickRects[index];
+
+        // Lấy dữ liệu slot
+        String metadata = controller.getSlotMetadata(index + 1);
+        boolean hasData = !metadata.equals("Empty Slot") && !metadata.equals("Error Data");
+
+        // --- VẼ NỀN SLOT ---
+        // Màu nền mặc định: Đen xám trong suốt
+        g2.setColor(new Color(50, 50, 50, 200));
+        g2.fillRect(bgRect.x, bgRect.y, bgRect.width, bgRect.height);
+
+        // Hiệu ứng Hover: Làm sáng vùng Save hoặc Load đang được chọn
+        if (hoveredSlotIndex == index) {
+            g2.setColor(new Color(100, 100, 100, 150)); // Màu sáng hơn cho hover
+            if (isHoveringSave) {
+                g2.fillRect(saveRect.x, saveRect.y, saveRect.width, saveRect.height);
+            } else if (hasData) { // Chỉ hover vùng Load nếu có dữ liệu
+                g2.fillRect(loadRect.x, loadRect.y, loadRect.width, loadRect.height);
+            }
+        }
+
+        // --- VẼ SỐ THỨ TỰ (Cột đầu tiên) ---
+        g2.setColor(Color.WHITE);
+        g2.setFont(numberFont);
+        // Căn giữa số trong hộp bên trái
+        int numberBoxCenter = bgRect.x + 50;
+        int textY = bgRect.y + bgRect.height / 2 + 20;
+        g2.drawString(String.valueOf(index + 1), numberBoxCenter - 15, textY);
+
+        // VẼ ĐƯỜNG KẺ DỌC NGĂN CÁCH SỐ VÀ TEXT
+        g2.setColor(new Color(255, 255, 255, 100));
+        g2.drawLine(bgRect.x + 100, bgRect.y, bgRect.x + 100, bgRect.y + bgRect.height);
+
+        // --- VẼ TEXT SAVE / LOAD (Cột thứ hai) ---
+        int textX = saveRect.x + 20;
+
+        // Dòng trên: Save state
+        g2.setFont(stateFont);
+        g2.setColor((hoveredSlotIndex == index && isHoveringSave) ? Color.YELLOW : Color.WHITE);
+        g2.drawString("Save state", textX, saveRect.y + 35);
+
+        // Dòng dưới: Load state + Ngày giờ (Chỉ vẽ nếu có dữ liệu)
+        if (hasData) {
+            g2.setFont(stateFont);
+            g2.setColor((hoveredSlotIndex == index && !isHoveringSave) ? Color.YELLOW : Color.WHITE);
+            g2.drawString("Load state", textX, loadRect.y + 35);
+
+            // Vẽ ngày giờ bên cạnh (Màu nhạt hơn)
+            g2.setFont(dateFont);
+            g2.setColor(new Color(200, 200, 200));
+            // Tách ngày và giờ để hiển thị cho đẹp nếu cần, ở đây vẽ thẳng
+            g2.drawString(metadata, textX + 130, loadRect.y + 35);
+        }
+    }
+
+    private void drawRightMenu(Graphics2D g2) {
+        g2.setFont(menuFont);
         FontMetrics fm = g2.getFontMetrics();
-        int textX = rect.x + (rect.width - fm.stringWidth(text)) / 2;
-        int textY = rect.y + ((rect.height - fm.getHeight()) / 2) + fm.getAscent();
-        g2.drawString(text, textX, textY);
+
+        for (int i = 0; i < menuItems.length; i++) {
+            Rectangle r = menuRects[i];
+            boolean isHovered = (hoveredMenuIndex == i);
+
+            g2.setColor(isHovered ? Color.YELLOW : Color.WHITE);
+            // Căn lề trái cho text menu
+            g2.drawString(menuItems[i], r.x, r.y + fm.getAscent());
+
+            // Vẽ thêm dấu mũi tên nếu hover để giống style game
+            if (isHovered) {
+                g2.drawString(">", r.x - 30, r.y + fm.getAscent());
+            }
+        }
     }
 }

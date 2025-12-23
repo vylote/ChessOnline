@@ -1,47 +1,35 @@
 package view;
 
 import controller.GameController;
-import utility.AppConstants;
-import javax.swing.*;
 import java.awt.image.BufferedImage;
+import javax.swing.*;
 
 public class MenuPauseFrame extends JFrame {
-
-    private final GameController controller;
     private final MenuPanel menuPanel;
     private final PausePanel pausePanel;
 
-    public MenuPauseFrame(GameController controller) {
-        this.controller = controller;
-        setTitle("Chess Game - Menu/Pause");
-        setSize(AppConstants.WINDOW_WIDTH, AppConstants.WINDOW_HEIGHT);
+    public MenuPauseFrame(GameController gc) {
+        setTitle("Chess Game 2025");
+        setSize(1200, 800);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setResizable(false);
 
-        this.menuPanel = new MenuPanel(controller, this);
-        this.pausePanel = new PausePanel(controller, this);
+        this.menuPanel = new MenuPanel(gc, this);
+        this.pausePanel = new PausePanel(gc, this);
 
-        // 2. Thiết lập Frame chứa MenuPanel ban đầu
-        setMenuPanel();
-
-        // 3. Thiết lập tham chiếu trong Controller
-        controller.setUiFrame(this);
+        setContentPane(menuPanel);
+        gc.setUiFrame(this);
     }
 
-    /** Chuyển sang hiển thị MenuPanel */
     public void setMenuPanel() {
         setContentPane(menuPanel);
-        revalidate(); // Tái hợp lệ hóa layout
-        repaint();
+        revalidate(); repaint();
     }
 
     public void setPausePanel(BufferedImage snapshot) {
-        // **QUAN TRỌNG:** Truyền ảnh cho PausePanel trước khi đặt nó làm Content Pane
-        pausePanel.setBackgroundSnapshot(snapshot);
-
+        pausePanel.setBackgroundSnapshot(snapshot); // Sẽ không còn lỗi "cannot find symbol"
         setContentPane(pausePanel);
-        revalidate();
-        repaint();
+        revalidate(); repaint();
     }
 }

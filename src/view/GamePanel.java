@@ -1,10 +1,7 @@
 package view;
 
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import javax.swing.*;
@@ -67,6 +64,50 @@ public class GamePanel extends JPanel {
         });
 
         addMouseMotionListener(mouse);
+        addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int x = e.getX();
+                int y = e.getY();
+
+                // Chuyển đổi tọa độ pixel sang tọa độ bàn cờ
+                int col = x / Board.SQUARE_SIZE;
+                int row = y / Board.SQUARE_SIZE;
+
+                boolean canInteract = false;
+
+                // 1. Kiểm tra hover vào nút Pause
+                if (pauseButton.getBounds().contains(x, y) && pauseButton.isVisible()) {
+                    canInteract = true;
+                }
+
+                // 2. Kiểm tra hover vào quân cờ (phải đúng lượt đi)
+                if (!canInteract && GameState.currentState == State.PLAYING) {
+                    Piece p = getPieceAt(col, row);
+                    if (p != null && p.color == controller.getCurrentColor()) {
+                        canInteract = true;
+                    }
+                }
+
+                // 3. Kiểm tra hover vào ô đang tô xanh (nước đi hợp lệ)
+                if (!canInteract && GameState.currentState == State.PLAYING && controller.isClickedToMove()) {
+                    ArrayList<int[]> validMoves = controller.getValidMoves();
+                    for (int[] move : validMoves) {
+                        if (move[0] == col && move[1] == row) {
+                            canInteract = true;
+                            break;
+                        }
+                    }
+                }
+
+                // --- THỰC THI ĐỔI CURSOR ---
+                if (canInteract) {
+                    setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                } else {
+                    setCursor(Cursor.getDefaultCursor());
+                }
+            }
+        });
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
