@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.io.*;
 
 import model.*;
+import utility.AudioManager;
 import view.GamePanel;
 import view.MenuPauseFrame;
 import javax.swing.*;
@@ -46,10 +47,20 @@ public class GameController implements Runnable {
     private JFrame mainFrame;
     private JFrame uiFrame;
 
+    private final AudioManager audioManager;
+    private final String MENU_BGM = "res/audio/bgm/menu_theme.wav";
+    private final String GAME_BGM = "res/audio/bgm/game_theme.wav";
+
     public GameController() {
+        this.audioManager = new AudioManager();
+        audioManager.playBGM(MENU_BGM);
         GameState.setState(State.MENU);
         setPieces();
         copyPieces(pieces, simPieces);
+    }
+
+    public AudioManager getAudioManager() {
+        return audioManager;
     }
 
     public void setMainFrame(JFrame frame) { this.mainFrame = frame; }
@@ -58,6 +69,7 @@ public class GameController implements Runnable {
     // --- GAME CONTROL METHODS ---
 
     public void exitToMenu() {
+        audioManager.playBGM(MENU_BGM);
         GameState.setState(State.MENU);
         isTimeRunning = false;
         if (mainFrame != null) mainFrame.setVisible(false);
@@ -78,6 +90,8 @@ public class GameController implements Runnable {
         isClickedToMove = false;
         promotion = false;
         resetTime();
+
+        audioManager.playBGM(GAME_BGM);
 
         // Kiểm tra ngay thế cờ vừa nạp
         if (isInsufficientMaterial()) {
@@ -112,6 +126,7 @@ public class GameController implements Runnable {
         if (GameState.currentState == State.PLAYING) {
             isTimeRunning = false;
             GameState.setState(State.PAUSED);
+            audioManager.playBGM(GAME_BGM);
             SwingUtilities.invokeLater(() -> {
                 if (gamePanel != null) {
                     this.gameSnapshot = gamePanel.getGameSnapshot();
@@ -622,6 +637,7 @@ public class GameController implements Runnable {
             this.timeLeft = data.timeLeft;
             for (Piece p : this.pieces) { p.image = reloadPieceImage(p); p.updatePosition(); }
             copyPieces(this.pieces, simPieces);
+            audioManager.playBGM(GAME_BGM);
             GameState.setState(State.PLAYING);
             isTimeRunning = true;
             if (uiFrame != null) uiFrame.dispose();
