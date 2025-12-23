@@ -1,9 +1,6 @@
 package view;
 
 import controller.GameController;
-import model.GameState;
-import model.State;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -21,17 +18,17 @@ public class MenuPanel extends JPanel {
     private final JFrame containingFrame;
     private BufferedImage backgroundImage;
 
-    // --- TRẠNG THÁI MENU ---
     private boolean showLoadSlots = false;
     private boolean showSettings = false;
 
-    // --- BIẾN HOVER ---
     private int hoveredMainButton = -1;
     private int hoveredSlot = -1;
     private boolean hoveredBack = false;
 
-    // --- COMPONENT & LAYOUT ---
-    private JSlider volumeSlider; // Biến toàn cục
+    // --- HAI THANH TRƯỢT ĐỘC LẬP ---
+    private JSlider bgmSlider;
+    private JSlider sfxSlider;
+
     private final Rectangle playButton, loadMenuButton, settingsButton, quitButton, backButton;
     private final Rectangle[] slotButtons = new Rectangle[4];
 
@@ -42,7 +39,7 @@ public class MenuPanel extends JPanel {
         this.controller = gc;
         this.containingFrame = containingFrame;
 
-        setLayout(null); // Bắt buộc để dùng setBounds cho JSlider
+        setLayout(null);
         setPreferredSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
 
         try {
@@ -51,69 +48,72 @@ public class MenuPanel extends JPanel {
             System.err.println("Lỗi: Không tải được ảnh nền.");
         }
 
-        // 1. Khởi tạo Slider (Quan trọng: Gọi hàm khởi tạo ở đây)
-        initVolumeSlider();
+        // 1. Khởi tạo 2 Sliders
+        initVolumeSliders();
 
-        // 2. Khởi tạo tọa độ nút Menu chính
+        // 2. Khởi tạo tọa độ nút
         int startY = 320;
         playButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY, BTN_W, BTN_H);
         loadMenuButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + 85, BTN_W, BTN_H);
         settingsButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + 170, BTN_W, BTN_H);
         quitButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + 255, BTN_W, BTN_H);
 
-        // 3. Khởi tạo 4 Slot Load
         for (int i = 0; i < 4; i++) {
             slotButtons[i] = new Rectangle((WINDOW_WIDTH - 500) / 2, 250 + (i * 90), 500, 80);
         }
         backButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, 650, BTN_W, BTN_H);
 
-        // --- LISTENERS ---
         addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseReleased(MouseEvent e) {
-                handleMouseClick(e.getX(), e.getY());
-            }
+            public void mouseReleased(MouseEvent e) { handleMouseClick(e.getX(), e.getY()); }
         });
 
         addMouseMotionListener(new MouseMotionAdapter() {
             @Override
-            public void mouseMoved(MouseEvent e) {
-                handleMouseHover(e.getX(), e.getY());
-            }
+            public void mouseMoved(MouseEvent e) { handleMouseHover(e.getX(), e.getY()); }
         });
     }
 
-    private void initVolumeSlider() {
-        // Lấy giá trị hiện tại từ AudioManager
-        volumeSlider = new JSlider(0, 100, controller.getAudioManager().getVolumeAsInt());
-
-        // Căn chỉnh Slider nằm giữa Label và Chỉ số %
-        volumeSlider.setBounds(500, 400, 300, 30);
-        volumeSlider.setOpaque(false);
-        volumeSlider.setFocusable(false);
-        volumeSlider.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        volumeSlider.addChangeListener(e -> {
-            controller.getAudioManager().setVolumeFromSlider(volumeSlider.getValue());
-            repaint(); // Vẽ lại để cập nhật con số % trên màn hình
+    private void initVolumeSliders() {
+        // BGM Slider
+        bgmSlider = new JSlider(0, 100, controller.getAudioManager().getBGMVolumeAsInt());
+        bgmSlider.setBounds(500, 360, 300, 30);
+        setupSliderStyle(bgmSlider);
+        bgmSlider.addChangeListener(e -> {
+            controller.getAudioManager().setBGMVolumeFromSlider(bgmSlider.getValue());
+            repaint();
         });
 
-        this.add(volumeSlider);
-        volumeSlider.setVisible(false); // Mặc định ẩn
+        // SFX Slider
+        sfxSlider = new JSlider(0, 100, controller.getAudioManager().getSFXVolumeAsInt());
+        sfxSlider.setBounds(500, 440, 300, 30);
+        setupSliderStyle(sfxSlider);
+        sfxSlider.addChangeListener(e -> {
+            controller.getAudioManager().setSFXVolumeFromSlider(sfxSlider.getValue());
+            repaint();
+        });
+
+        this.add(bgmSlider);
+        this.add(sfxSlider);
+    }
+
+    private void setupSliderStyle(JSlider slider) {
+        slider.setOpaque(false);
+        slider.setFocusable(false);
+        slider.setVisible(false);
+        slider.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 
     private void handleMouseClick(int x, int y) {
         if (showSettings) {
             if (backButton.contains(x, y)) {
                 showSettings = false;
-                volumeSlider.setVisible(false);
+                bgmSlider.setVisible(false);
+                sfxSlider.setVisible(false);
             }
         } else if (showLoadSlots) {
             for (int i = 0; i < 4; i++) {
-                if (slotButtons[i].contains(x, y)) {
-                    controller.loadGame(i + 1);
-                    return;
-                }
+                if (slotButtons[i].contains(x, y)) { controller.loadGame(i + 1); return; }
             }
             if (backButton.contains(x, y)) showLoadSlots = false;
         } else {
@@ -121,7 +121,8 @@ public class MenuPanel extends JPanel {
             else if (loadMenuButton.contains(x, y)) showLoadSlots = true;
             else if (settingsButton.contains(x, y)) {
                 showSettings = true;
-                volumeSlider.setVisible(true); // Hiện slider khi vào settings
+                bgmSlider.setVisible(true);
+                sfxSlider.setVisible(true);
             }
             else if (quitButton.contains(x, y)) System.exit(0);
         }
@@ -130,7 +131,6 @@ public class MenuPanel extends JPanel {
 
     private void handleMouseHover(int x, int y) {
         hoveredMainButton = -1; hoveredSlot = -1; hoveredBack = false;
-
         if (showSettings || showLoadSlots) {
             if (backButton.contains(x, y)) hoveredBack = true;
         } else {
@@ -140,7 +140,6 @@ public class MenuPanel extends JPanel {
             else if (quitButton.contains(x, y)) hoveredMainButton = 3;
         }
 
-        // Đổi con trỏ chuột
         if (hoveredMainButton != -1 || hoveredSlot != -1 || hoveredBack) {
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         } else {
@@ -155,7 +154,6 @@ public class MenuPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Vẽ nền
         if (backgroundImage != null) g2.drawImage(backgroundImage, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, null);
         g2.setColor(new Color(0, 0, 0, 160));
         g2.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -163,7 +161,6 @@ public class MenuPanel extends JPanel {
         if (showSettings) {
             drawSettingsUI(g2);
         } else {
-            // Vẽ Tiêu đề
             g2.setColor(Color.WHITE);
             g2.setFont(new Font("Arial", Font.BOLD, 70));
             String title = showLoadSlots ? "SELECT SAVE SLOT" : "CHESS GAME 2025";
@@ -186,12 +183,19 @@ public class MenuPanel extends JPanel {
         g2.setFont(new Font("Arial", Font.BOLD, 60));
         g2.drawString("SETTINGS", (WINDOW_WIDTH - g2.getFontMetrics().stringWidth("SETTINGS")) / 2, 180);
 
-        // Bố cục: Label - Slider (tự vẽ bởi Component) - %
         g2.setFont(new Font("Arial", Font.PLAIN, 25));
-        g2.drawString("Music Volume", 320, 422);
 
+        // Music Row
+        g2.setColor(Color.WHITE);
+        g2.drawString("Music Volume", 320, 382);
         g2.setColor(Color.YELLOW);
-        g2.drawString(volumeSlider.getValue() + "%", 820, 422);
+        g2.drawString(bgmSlider.getValue() + "%", 820, 382);
+
+        // SFX Row
+        g2.setColor(Color.WHITE);
+        g2.drawString("Sound FX", 320, 462);
+        g2.setColor(Color.YELLOW);
+        g2.drawString(sfxSlider.getValue() + "%", 820, 462);
 
         drawButton(g2, backButton, "BACK", Color.GRAY, hoveredBack);
     }
@@ -206,7 +210,6 @@ public class MenuPanel extends JPanel {
         g2.drawRoundRect(r.x, r.y, r.width, r.height, 15, 15);
         g2.setFont(new Font("Arial", Font.BOLD, 22));
         g2.drawString("SLOT " + (index + 1), r.x + 30, r.y + 35);
-
         g2.setFont(new Font("Monospaced", Font.PLAIN, 16));
         g2.setColor(new Color(200, 200, 200));
         g2.drawString(controller.getSlotMetadata(index + 1), r.x + 30, r.y + 60);
