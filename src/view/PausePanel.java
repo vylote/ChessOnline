@@ -12,7 +12,7 @@ public class PausePanel extends JPanel {
     private BufferedImage backgroundSnapshot;
 
     // --- CẤU HÌNH SỐ LƯỢNG SLOT ---
-    private static final int TOTAL_SLOTS = 5; // Ảnh mẫu có 5 slot
+    private static final int TOTAL_SLOTS = 4;
 
     // --- HẰNG SỐ BỐ CỤC (Dựa trên kích thước 1200x800) ---
     private static final int WINDOW_WIDTH = 1200;
