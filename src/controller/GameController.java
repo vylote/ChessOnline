@@ -174,22 +174,13 @@ public class GameController implements Runnable {
 
     private void update() {
         if (GameState.currentState != State.PLAYING || gameOver) return;
-
+        isKingInCheck();
         // 1. PRIORITY CHECK: Insufficient Material (Immediate Draw)
         if (isInsufficientMaterial()) {
             isDraw = true;
             gameOver = true;
             isTimeRunning = false;
             GameState.currentState = State.GAME_OVER; // Force state change
-            return;
-        }
-
-        // 2. Stalemate Check
-        if (isStaleMate()) {
-            isDraw = true;
-            gameOver = true;
-            isTimeRunning = false;
-            GameState.currentState = State.GAME_OVER;
             return;
         }
 
@@ -204,10 +195,10 @@ public class GameController implements Runnable {
                 if (promotion) {
                     autoPromoteOnTimeout();
                 } else if (isKingInCheck()) {
+                    isDraw = false;
                     gameOver = true;
                     isTimeRunning = false;
                     GameState.currentState = State.GAME_OVER;
-                    JOptionPane.showMessageDialog(null, "Hết giờ khi bị chiếu! Người thắng: " + (currentColor == WHITE ? "Đen" : "Trắng"));
                 } else {
                     finalizeTurn();
                 }
@@ -296,16 +287,21 @@ public class GameController implements Runnable {
                     simulateClickToMove(col, row);
                     activeP.finishMove();
                     copyPieces(simPieces, pieces);
-                    activeP.updatePosition();
+
                     if (castlingP != null) castlingP.updatePosition();
 
                     if (isKingInCheck() && isCheckMate()) {
                         gameOver = true;
                         isTimeRunning = false;
+                        isDraw = false;
+                        GameState.setState(State.GAME_OVER); // Chuyển trạng thái để GamePanel vẽ màn hình thắng
+
                     } else if (isStaleMate()) {
                         isDraw = true;
                         gameOver = true;
                         isTimeRunning = false;
+                        GameState.setState(State.GAME_OVER);
+                        return;
                     } else {
                         if (canPromote()) {
                             promotion = true;

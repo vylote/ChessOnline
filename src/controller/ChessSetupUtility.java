@@ -120,4 +120,16 @@ public class ChessSetupUtility {
         pieces.add(new Knight(BLACK, 5, 6));
         pieces.add(new King(BLACK, 0, 0));
     }
+    /** Test: Thế cờ trong ảnh của bạn (Hậu và Vua Đen chiếu hết Vua Trắng) */
+    public static void testCheckmate_ImageScenario(ArrayList<Piece> pieces) {
+        pieces.clear();
+        // Vua Trắng ở a6 (2, 0)
+        pieces.add(new King(WHITE, 2, 0));
+        // Hậu Đen ở a1 (7, 0) chiếu trực diện
+        pieces.add(new Queen(BLACK, 7, 0));
+        // Vua Đen ở c7 (1, 2) khóa các ô thoát b6, b7
+        pieces.add(new King(BLACK, 1, 2));
+        // Xe Đen ở h5 (3, 7) khóa hàng 5
+        pieces.add(new Rook(BLACK, 3, 7));
+    }
 }

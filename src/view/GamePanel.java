@@ -181,20 +181,25 @@ public class GamePanel extends JPanel {
                         Board.SQUARE_SIZE, Board.SQUARE_SIZE, null);
             }
         } else {
-            Piece king = controller.getKing(false);
             int currentColor = controller.getCurrentColor();
             Piece checkingP = controller.getCheckingP();
 
             if (checkingP != null) {
-                g2.setColor(Color.RED);
-                String kingColor = (currentColor == GameController.WHITE) ? "White" : "Black";
-                g2.drawString(kingColor + " King", textX, currentColor == GameController.WHITE ? 100 : 600);
-                g2.drawString("is in check!", textX, currentColor == GameController.WHITE ? 150 : 650);
+                // Lấy Vua của phe hiện tại (đang bị chiếu)
+                Piece king = controller.getKing(false);
 
-                // Highlight ô của Vua đang bị chiếu
-                g2.setColor(new Color(255, 0, 0, 100));
-                g2.fillRect(king.col * Board.SQUARE_SIZE, king.row * Board.SQUARE_SIZE,
-                        Board.SQUARE_SIZE, Board.SQUARE_SIZE);
+                if (king != null) {
+                    // Vẽ highlight ĐỎ cho ô của Vua
+                    g2.setColor(new Color(255, 0, 0, 150));
+                    g2.fillRect(king.col * Board.SQUARE_SIZE, king.row * Board.SQUARE_SIZE,
+                            Board.SQUARE_SIZE, Board.SQUARE_SIZE);
+
+                    // Vẽ text thông báo trạng thái
+                    g2.setColor(Color.RED);
+                    g2.setFont(new Font("Arial", Font.BOLD, 20));
+                    String kingColor = (king.color == GameController.WHITE) ? "White" : "Black";
+                    g2.drawString(kingColor + " King is in check!", textX, king.color == GameController.WHITE ? 100 : 600);
+                }
             }
 
             g2.setColor(Color.WHITE);
