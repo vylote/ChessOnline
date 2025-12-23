@@ -39,13 +39,14 @@ public class GamePanel extends JPanel {
         // 2. Tạo và thêm Nút Pause
         pauseButton = new JButton("||");
         pauseButton.setFont(new Font("Arial", Font.BOLD, 14));
-        pauseButton.setBackground(Color.WHITE);
+        pauseButton.setBackground(Color.BLACK);
         pauseButton.setFocusable(false); // Tránh cướp focus của KeyListener
-
+        pauseButton.setBorder(BorderFactory.createLineBorder(Color.WHITE));
+        pauseButton.setForeground(Color.WHITE);
         pauseButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        int pauseX = WIDTH - PAUSE_BUTTON_SIZE - 10;
-        int pauseY = 10;
+        int pauseX = WIDTH - PAUSE_BUTTON_SIZE-1;
+        int pauseY = 1;
         pauseButton.setBounds(pauseX, pauseY, PAUSE_BUTTON_SIZE, PAUSE_BUTTON_SIZE);
 
         pauseButton.addActionListener(e -> {
