@@ -296,6 +296,19 @@ public class GameController implements Runnable {
 
                     if (castlingP != null) castlingP.updatePosition();
 
+                    Timer sfxTimer = new Timer(200, e -> {
+                        if (isKingInCheck() && isCheckMate()) {
+                            triggerEndGame(false, currentColor == WHITE ? BLACK : WHITE);
+                        } else if (isStaleMate()) {
+                            triggerEndGame(true, null);
+                        } else if (isKingInCheck()) {
+                            audioManager.playSFX(SFX_CHECK);
+                        }
+                        ((Timer)e.getSource()).stop();
+                    });
+                    sfxTimer.setRepeats(false);
+                    sfxTimer.start();
+
                     if (isKingInCheck() && isCheckMate()) {
                         triggerEndGame(false, currentColor == WHITE ? BLACK : WHITE);
                     } else if (isStaleMate()) {
