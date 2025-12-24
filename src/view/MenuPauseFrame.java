@@ -22,14 +22,11 @@ public class MenuPauseFrame extends JFrame {
         gc.setUiFrame(this);
     }
 
-    public void setMenuPanel() {
-        setContentPane(menuPanel);
-        revalidate(); repaint();
-    }
 
     public void setPausePanel(BufferedImage snapshot) {
         pausePanel.setBackgroundSnapshot(snapshot); // Sẽ không còn lỗi "cannot find symbol"
         setContentPane(pausePanel);
+        pack();
         revalidate(); repaint();
     }
 }
