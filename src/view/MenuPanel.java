@@ -158,11 +158,11 @@ public class MenuPanel extends JPanel {
     }
 
     private void drawMainUI(Graphics2D g2, int cx, int bx) {
-        drawTitle(g2, "CHESS GAME 2025", cx);
-        drawStyledBtn(g2, bx, playY, "PLAY NEW GAME", new Color(46, 204, 113), 0);
-        drawStyledBtn(g2, bx, loadY, "LOAD GAME", new Color(52, 152, 219), 1);
-        drawStyledBtn(g2, bx, settY, "SETTINGS", new Color(149, 165, 166), 2);
-        drawStyledBtn(g2, bx, exitY, "EXIT", new Color(231, 76, 60), 3);
+        drawTitle(g2, "Chess Gemini", cx);
+        drawStyledBtn(g2, bx, playY, "New Game", new Color(46, 204, 113), 0);
+        drawStyledBtn(g2, bx, loadY, "Load Game", new Color(52, 152, 219), 1);
+        drawStyledBtn(g2, bx, settY, "Settings", new Color(149, 165, 166), 2);
+        drawStyledBtn(g2, bx, exitY, "Exit", new Color(231, 76, 60), 3);
     }
 
     private void drawLoadUI(Graphics2D g2, int cx, int bx) {
