@@ -11,16 +11,17 @@ import javax.swing.Timer;
 import model.*;
 import utility.AudioManager;
 import view.GamePanel;
+import view.MainFrame;
 import view.MenuPanel;
 import view.PausePanel;
 
 /**
- * Controller trung tâm quản lý toàn bộ logic game, âm thanh và giao diện.
- * Sử dụng kiến trúc Single Frame để đảm bảo chỉ có 1 cửa sổ duy nhất.
+ * Controller trung tâm quản lý toàn bộ logic game, âm thanh và điều phối giao diện.
+ * Sử dụng kiến trúc Single Frame để đảm bảo chỉ có 1 cửa sổ duy nhất suốt quá trình chơi.
  */
 public class GameController implements Runnable {
-    // --- GIAO DIỆN DUY NHẤT ---
-    private final JFrame window;
+    // --- GIAO DIỆN DUY NHẤT (SINGLE FRAME) ---
+    private final MainFrame window;
     private GamePanel gamePanel;
     private final MenuPanel menuPanel;
     private final PausePanel pausePanel;
@@ -69,16 +70,14 @@ public class GameController implements Runnable {
     public GameController() {
         this.audioManager = new AudioManager();
 
-        // 1. Khởi tạo JFrame duy nhất
-        window = new JFrame("CHESS GAME 2025");
-        window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        window.setResizable(false);
+        // 1. Khởi tạo JFrame duy nhất (MainFrame đã được tối ưu với hàm showPanel)
+        this.window = new MainFrame();
 
-        // 2. Khởi tạo các Panel (Lưu ý: GamePanel sẽ tạo mới mỗi ván)
-        menuPanel = new MenuPanel(this, window);
-        pausePanel = new PausePanel(this, window);
+        // 2. Khởi tạo các Panel
+        this.menuPanel = new MenuPanel(this, window);
+        this.pausePanel = new PausePanel(this, window);
 
-        // 3. Hiển thị Menu đầu tiên
+        // 3. Hiển thị Menu đầu tiên lên cửa sổ duy nhất
         showPanel(menuPanel);
         audioManager.playBGM(MENU_BGM);
         GameState.setState(State.MENU);
@@ -89,17 +88,10 @@ public class GameController implements Runnable {
 
     /**
      * Phương thức điều phối giao diện: Tháo Panel cũ, lắp Panel mới.
-     * Sử dụng pack() để Windows tự động tính toán viền và thanh tiêu đề.
+     * Sử dụng pack() bên trong MainFrame để đảm bảo vùng vẽ luôn là 1200x800.
      */
     private void showPanel(JPanel panel) {
-        window.getContentPane().removeAll();
-        window.add(panel);
-        window.pack(); // Quan trọng: Đảm bảo vùng nội dung luôn là 1200x800
-        window.setLocationRelativeTo(null);
-        window.setVisible(true);
-        window.revalidate();
-        window.repaint();
-        panel.requestFocusInWindow();
+        window.showPanel(panel);
     }
 
     // --- GAME CONTROL METHODS ---
@@ -112,7 +104,7 @@ public class GameController implements Runnable {
         isDraw = false; gameOver = false; isClickedToMove = false; promotion = false;
         resetTime();
 
-        // Tạo GamePanel mới cho ván đấu mới
+        // Khởi tạo GamePanel mới và đưa lên cửa sổ
         gamePanel = new GamePanel(this);
         showPanel(gamePanel);
 
@@ -139,10 +131,10 @@ public class GameController implements Runnable {
             isTimeRunning = false;
             GameState.setState(State.PAUSED);
 
-            // Chụp snapshot để làm nền mờ cho PausePanel
+            // Chụp snapshot để làm nền mờ cho PausePanel và lưu thumbnail
             this.gameSnapshot = gamePanel.getGameSnapshot();
             pausePanel.setBackgroundSnapshot(this.gameSnapshot);
-            pausePanel.loadAllThumbnails(); // Nạp ảnh từ ổ đĩa
+            pausePanel.loadAllThumbnails(); // Nạp lại ảnh từ ổ đĩa để hiển thị slot
 
             showPanel(pausePanel);
         }
@@ -247,14 +239,14 @@ public class GameController implements Runnable {
                 activeP.finishMove();
                 copyPieces(simPieces, pieces);
 
-                // 1. Âm thanh tức thì
+                // 1. Phát âm thanh di chuyển tức thì
                 if (captured != null) audioManager.playSFX(SFX_CAPTURE);
                 else if (isCastling) { audioManager.playSFX(SFX_CASTLE); isCastling = false; }
                 else audioManager.playSFX(SFX_MOVE);
 
                 if (castlingP != null) castlingP.updatePosition();
 
-                // 2. Độ trễ 200ms cho âm thanh báo trạng thái cờ
+                // 2. Độ trễ 200ms cho âm thanh báo trạng thái (Check/Checkmate) để tránh đè tiếng Move
                 Timer sfxTimer = new Timer(200, e -> {
                     if (isKingInCheck() && isCheckMate()) {
                         triggerEndGame(false, currentColor == WHITE ? BLACK : WHITE);
@@ -515,6 +507,13 @@ public class GameController implements Runnable {
     private void promoting() {
         if (!mouse.released) return;
         int selCol = mouse.x / Board.SQUARE_SIZE, selRow = mouse.y / Board.SQUARE_SIZE;
+        boolean hoveringPromo = false;
+        for (Piece p : promoPieces) {
+            if (p.col == selCol && p.row == selRow) {
+                hoveringPromo = true; break;
+            }
+        }
+        window.setCursor(Cursor.getPredefinedCursor(hoveringPromo ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
         for (Piece p : promoPieces) {
             if (p.col == selCol && p.row == selRow) {
                 Piece newP = null;
@@ -588,7 +587,7 @@ public class GameController implements Runnable {
             for (Piece p : this.pieces) { p.image = reloadPieceImage(p); p.updatePosition(); }
             copyPieces(this.pieces, simPieces);
 
-            // Khởi chạy GamePanel mới sau khi nạp
+            // Chuyển sang GamePanel mới sau khi nạp thành công
             gamePanel = new GamePanel(this);
             showPanel(gamePanel);
             audioManager.playBGM(GAME_BGM);

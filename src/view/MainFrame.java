@@ -1,9 +1,7 @@
 package view;
 
-import controller.GameController;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
-import utility.AppConstants;
 
 /**
  * MainFrame là cửa sổ duy nhất của trò chơi.
