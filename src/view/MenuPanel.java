@@ -17,6 +17,7 @@ public class MenuPanel extends JPanel {
     private final GameController controller;
     private final JFrame containingFrame;
     private BufferedImage backgroundImage;
+    private BufferedImage[] slotThumbnails = new BufferedImage[4];
 
     private boolean showLoadSlots = false;
     private boolean showSettings = false;
@@ -54,9 +55,9 @@ public class MenuPanel extends JPanel {
         // 2. Khởi tạo tọa độ nút
         int startY = 320;
         playButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY, BTN_W, BTN_H);
-        loadMenuButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + 85, BTN_W, BTN_H);
-        settingsButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + 170, BTN_W, BTN_H);
-        quitButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + 255, BTN_W, BTN_H);
+        loadMenuButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + BTN_H, BTN_W, BTN_H);
+        settingsButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + BTN_H*2, BTN_W, BTN_H);
+        quitButton = new Rectangle((WINDOW_WIDTH - BTN_W) / 2, startY + BTN_H*3, BTN_W, BTN_H);
 
         for (int i = 0; i < 4; i++) {
             slotButtons[i] = new Rectangle((WINDOW_WIDTH - 500) / 2, 250 + (i * 90), 500, 80);
@@ -118,7 +119,10 @@ public class MenuPanel extends JPanel {
             if (backButton.contains(x, y)) showLoadSlots = false;
         } else {
             if (playButton.contains(x, y)) controller.startNewGame();
-            else if (loadMenuButton.contains(x, y)) showLoadSlots = true;
+            else if (loadMenuButton.contains(x, y)) {
+                loadThumbnails();
+                showLoadSlots = true;
+            }
             else if (settingsButton.contains(x, y)) {
                 showSettings = true;
                 bgmSlider.setVisible(true);
@@ -178,10 +182,10 @@ public class MenuPanel extends JPanel {
             g2.drawString(title, (WINDOW_WIDTH - g2.getFontMetrics().stringWidth(title)) / 2, 180);
 
             if (!showLoadSlots) {
-                drawButton(g2, playButton, "PLAY NEW GAME", new Color(40, 167, 69), hoveredMainButton == 0);
-                drawButton(g2, loadMenuButton, "LOAD GAME", new Color(255, 193, 7), hoveredMainButton == 1);
-                drawButton(g2, settingsButton, "SETTINGS", new Color(0, 123, 255), hoveredMainButton == 2);
-                drawButton(g2, quitButton, "EXIT", new Color(220, 53, 69), hoveredMainButton == 3);
+                drawButton(g2, playButton, "PLAY NEW GAME", new Color(137, 154, 148, 255), hoveredMainButton == 0);
+                drawButton(g2, loadMenuButton, "LOAD GAME", new Color(137, 154, 148, 255), hoveredMainButton == 1);
+                drawButton(g2, settingsButton, "SETTINGS", new Color(137, 154, 148, 255), hoveredMainButton == 2);
+                drawButton(g2, quitButton, "EXIT", new Color(137, 154, 148, 255), hoveredMainButton == 3);
             } else {
                 for (int i = 0; i < 4; i++) drawSlotButton(g2, i);
                 drawButton(g2, backButton, "BACK", Color.GRAY, hoveredBack);
@@ -215,25 +219,51 @@ public class MenuPanel extends JPanel {
         Rectangle r = slotButtons[index];
         boolean isH = (hoveredSlot == index);
         g2.setColor(isH ? new Color(80, 80, 80) : new Color(50, 50, 50));
-        g2.fillRoundRect(r.x, r.y, r.width, r.height, 15, 15);
+        g2.fillRect(r.x, r.y, r.width, r.height);
         g2.setColor(Color.WHITE);
         g2.setStroke(new BasicStroke(isH ? 3 : 1));
-        g2.drawRoundRect(r.x, r.y, r.width, r.height, 15, 15);
+        g2.drawRect(r.x, r.y, r.width, r.height);
+
+        // 2. THIẾT LẬP VỊ TRÍ ẢNH
+        int imgW = 120; // Độ rộng ảnh thumbnail
+        int imgH = r.height - 10;
+        int imgX = r.x + 5;
+        int imgY = r.y + 5;
+
+        // 3. VẼ THUMBNAIL
+        if (slotThumbnails[index] != null) {
+            // Vẽ ảnh snapshot đã lưu từ file .png
+            g2.drawImage(slotThumbnails[index], imgX, imgY, imgW, imgH, null);
+        } else {
+            g2.setColor(new Color(40, 40, 40));
+            g2.fillRect(imgX, imgY, imgW, imgH);
+            g2.setColor(Color.DARK_GRAY);
+            g2.drawRect(imgX, imgY, imgW, imgH);
+            g2.drawString("SLOT " + (index + 1), r.x + 30, r.y + 35);
+        }
+
+        int textX = imgX + imgW + 15;
         g2.setFont(new Font("Arial", Font.BOLD, 22));
-        g2.drawString("SLOT " + (index + 1), r.x + 30, r.y + 35);
         g2.setFont(new Font("Monospaced", Font.PLAIN, 16));
         g2.setColor(new Color(200, 200, 200));
-        g2.drawString(controller.getSlotMetadata(index + 1), r.x + 30, r.y + 60);
+        g2.drawString(controller.getSlotMetadata(index + 1), textX, r.y + 60);
     }
 
     private void drawButton(Graphics2D g2, Rectangle rect, String text, Color color, boolean isH) {
         g2.setColor(isH ? color.brighter() : color);
-        g2.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 10, 10);
-        g2.setColor(Color.WHITE);
+        g2.fillRect(rect.x, rect.y, rect.width, rect.height);
+        g2.setColor(Color.GRAY);
         g2.setStroke(new BasicStroke(isH ? 3 : 1));
-        g2.drawRoundRect(rect.x, rect.y, rect.width, rect.height, 10, 10);
+        g2.drawRect(rect.x, rect.y, rect.width, rect.height);
         g2.setFont(new Font("Arial", Font.BOLD, 22));
+        g2.setColor(Color.BLACK);
         FontMetrics fm = g2.getFontMetrics();
         g2.drawString(text, rect.x + (rect.width - fm.stringWidth(text)) / 2, rect.y + (rect.height + fm.getAscent()) / 2 - 5);
+    }
+
+    private void loadThumbnails() {
+        for (int i = 0; i < 4; i++) {
+            slotThumbnails[i] = controller.getSlotThumbnail(i + 1);
+        }
     }
 }

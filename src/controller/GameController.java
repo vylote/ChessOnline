@@ -610,6 +610,8 @@ public class GameController implements Runnable {
         } catch (Exception e) { return "Corrupted Data"; }
     }
 
+
+
     private BufferedImage reloadPieceImage(Piece p) {
         String prefix = (p.color == WHITE) ? "w" : "b";
         String typeName = p.type.toString().toLowerCase();
