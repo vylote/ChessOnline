@@ -11,6 +11,8 @@ import model.*;
 import utility.AudioManager;
 import view.GamePanel;
 import view.MenuPauseFrame;
+
+import javax.imageio.ImageIO;
 import javax.swing.*;
 
 public class GameController implements Runnable {
@@ -539,11 +541,28 @@ public class GameController implements Runnable {
 
     // --- SAVE / LOAD ---
 
-    public void saveGame(int slot) {
+    public void saveGame(int slot, BufferedImage snapshot) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame_" + slot + ".dat"))) {
             SaveData data = new SaveData(this.pieces, this.currentColor, this.timeLeft);
             oos.writeObject(data);
+
+            if (snapshot != null) {
+                File thumbFile = new File("thumbnail_" + slot + ".png");
+                ImageIO.write(snapshot, "png", thumbFile);
+            }
         } catch (IOException e) { e.printStackTrace(); }
+    }
+
+    public BufferedImage getSlotThumbnail(int slot) {
+        try {
+            File thumbFile = new File("thumbnail_" + slot + ".png");
+            if (thumbFile.exists()) {
+                return ImageIO.read(thumbFile);
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return null;
     }
 
     public void loadGame(int slot) {
