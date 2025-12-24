@@ -94,6 +94,7 @@ public class PausePanel extends JPanel {
 
     private void handleMouseHover(int x, int y) {
         hoveredSlotIndex = -1; hoveredMenuIndex = -1;
+
         for (int i = 0; i < TOTAL_SLOTS; i++) {
             if (saveClickRects[i].contains(x, y)) { hoveredSlotIndex = i; isHoveringSave = true; break; }
             if (loadClickRects[i].contains(x, y)) { hoveredSlotIndex = i; isHoveringSave = false; break; }
@@ -108,6 +109,7 @@ public class PausePanel extends JPanel {
         } else {
             setCursor(Cursor.getDefaultCursor());
         }
+
         repaint();
     }
 

@@ -131,13 +131,22 @@ public class MenuPanel extends JPanel {
 
     private void handleMouseHover(int x, int y) {
         hoveredMainButton = -1; hoveredSlot = -1; hoveredBack = false;
+
+
         if (showSettings || showLoadSlots) {
-            if (backButton.contains(x, y)) hoveredBack = true;
+            for (int i = 0; i < 4; i++) {
+                if (slotButtons[i].contains(x, y)) {
+                    hoveredSlot = i;
+
+                    break;
+                }
+            }
+            if (backButton.contains(x, y)) { hoveredBack = true;}
         } else {
-            if (playButton.contains(x, y)) hoveredMainButton = 0;
-            else if (loadMenuButton.contains(x, y)) hoveredMainButton = 1;
-            else if (settingsButton.contains(x, y)) hoveredMainButton = 2;
-            else if (quitButton.contains(x, y)) hoveredMainButton = 3;
+            if (playButton.contains(x, y)) { hoveredMainButton = 0;}
+            else if (loadMenuButton.contains(x, y)) { hoveredMainButton = 1;}
+            else if (settingsButton.contains(x, y)) { hoveredMainButton = 2;}
+            else if (quitButton.contains(x, y)) { hoveredMainButton = 3;}
         }
 
         if (hoveredMainButton != -1 || hoveredSlot != -1 || hoveredBack) {
@@ -145,6 +154,8 @@ public class MenuPanel extends JPanel {
         } else {
             setCursor(Cursor.getDefaultCursor());
         }
+
+
         repaint();
     }
 
