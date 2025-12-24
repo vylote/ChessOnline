@@ -5,23 +5,16 @@ import java.awt.event.MouseEvent;
 
 public class Mouse extends MouseAdapter {
     public int x, y;
-    public boolean pressed;
-    public boolean released;
-    // public boolean released = false; // <<< XÓA DÒNG NÀY (Đã được xử lý trong GameController)
+    public boolean pressed, released;
 
-    public void mousePressed(MouseEvent e) {
-        pressed = true;
-
-        x = e.getX();
-        y = e.getY();
+    public void updateLocation(int lx, int ly) {
+        this.x = lx;
+        this.y = ly;
     }
 
-    public void mouseReleased(MouseEvent e) {
-        pressed = false;
-    }
+    @Override
+    public void mousePressed(MouseEvent e) { pressed = true; released = false; }
 
-    public void mouseDragged(MouseEvent e) {
-        x = e.getX();
-        y = e.getY();
-    }
+    @Override
+    public void mouseReleased(MouseEvent e) { pressed = false; released = true; }
 }
