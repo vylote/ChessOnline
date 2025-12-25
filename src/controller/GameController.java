@@ -4,18 +4,18 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
-import java.util.concurrent.CopyOnWriteArrayList; // Import quan trọng cho Cách 1
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.Timer;
 
 import model.*;
 import utility.AudioManager;
-import view.GamePanel;
-import view.MainFrame;
-import view.MenuPanel;
-import view.PausePanel;
+import view.*;
 
+/**
+ * Controller hoàn chỉnh quản lý logic Game, Save/Load và Phong cấp thực tế.
+ */
 public class GameController implements Runnable {
     // --- GIAO DIỆN ---
     private final MainFrame window;
@@ -36,11 +36,9 @@ public class GameController implements Runnable {
     private long lastSecond = System.currentTimeMillis();
     private int timeLeft = 10;
 
-    // --- THÀNH PHẦN LOGIC (ÁP DỤNG CÁCH 1) ---
+    // --- THÀNH PHẦN LOGIC (Sử dụng CopyOnWriteArrayList chống lỗi đa luồng) ---
     private final Board board = new Board();
     public Mouse mouse = new Mouse();
-
-    // Sử dụng CopyOnWriteArrayList để tránh ConcurrentModificationException
     private final CopyOnWriteArrayList<Piece> pieces = new CopyOnWriteArrayList<>();
     public static CopyOnWriteArrayList<Piece> simPieces = new CopyOnWriteArrayList<>();
 
@@ -51,11 +49,7 @@ public class GameController implements Runnable {
 
     // --- ÂM THANH ---
     private final AudioManager audioManager;
-    private final String MENU_BGM = "res/audio/bgm/menu_theme.wav";
-    private final String GAME_BGM = "res/audio/bgm/game_theme.wav";
-
     private Thread gameThread;
-    private BufferedImage gameSnapshot;
 
     public GameController() {
         this.audioManager = new AudioManager();
@@ -65,7 +59,7 @@ public class GameController implements Runnable {
         this.pausePanel = new PausePanel(this, window);
 
         showPanel(menuPanel);
-        audioManager.playBGM(MENU_BGM);
+        audioManager.playBGM("res/audio/bgm/menu_theme.wav");
         GameState.setState(State.MENU);
 
         setPieces();
@@ -83,9 +77,8 @@ public class GameController implements Runnable {
 
         gamePanel = new GamePanel(this);
         showPanel(gamePanel);
-        audioManager.playBGM(GAME_BGM);
+        audioManager.playBGM("res/audio/bgm/game_theme.wav");
 
-        // Kiểm tra trạng thái tức thì
         if (isInsufficientMaterial() || isStaleMate()) {
             triggerEndGame(true, null);
         } else if (isKingInCheck() && isCheckMate()) {
@@ -101,12 +94,12 @@ public class GameController implements Runnable {
         }
     }
 
+    // --- CÁC PHƯƠNG THỨC ĐIỀU KHIỂN GIAO DIỆN (Sửa lỗi image_246b90) ---
     public void pauseGame() {
         if (GameState.currentState == State.PLAYING) {
             isTimeRunning = false;
             GameState.setState(State.PAUSED);
-            this.gameSnapshot = gamePanel.getGameSnapshot();
-            pausePanel.setBackgroundSnapshot(this.gameSnapshot);
+            pausePanel.setBackgroundSnapshot(gamePanel.getGameSnapshot());
             pausePanel.loadAllThumbnails();
             showPanel(pausePanel);
         }
@@ -124,7 +117,7 @@ public class GameController implements Runnable {
         isTimeRunning = false;
         GameState.setState(State.MENU);
         menuPanel.resetMenu();
-        audioManager.playBGM(MENU_BGM);
+        audioManager.playBGM("res/audio/bgm/menu_theme.wav");
         showPanel(menuPanel);
     }
 
@@ -147,51 +140,37 @@ public class GameController implements Runnable {
 
             if (delta >= 1) {
                 update();
-                // FIX: Luôn repaint nếu gamePanel tồn tại, không quan tâm trạng thái PLAYING hay GAME_OVER
-                if (gamePanel != null) {
-                    gamePanel.repaint();
-                }
+                if (gamePanel != null) gamePanel.repaint();
                 delta--;
             }
         }
     }
 
-    // --- Cập nhật lại phương thức update trong GameController.java ---
-
     private void update() {
         if (GameState.currentState != State.PLAYING || gameOver) return;
 
-        if (isInsufficientMaterial()) {
-            triggerEndGame(true, null);
-            return;
-        }
+        isKingInCheck();
 
-        // XỬ LÝ THỜI GIAN MƯỢT MÀ HƠN
+        if (isInsufficientMaterial()) { triggerEndGame(true, null); return; }
+
         long now = System.currentTimeMillis();
         if (isTimeRunning && now - lastSecond >= 1000) {
             lastSecond = now;
             timeLeft--;
 
             if (timeLeft <= 0) {
-                if (promotion) {
-                    // TỰ ĐỘNG PHONG CẤP THÀNH HẬU KHI HẾT GIỜ
+                if (promotion && !promoPieces.isEmpty()) {
                     replacePawnAndFinish(promoPieces.get(0));
                 } else if (isKingInCheck()) {
-                    isTimeRunning = false;
-                    int winner = (currentColor == WHITE) ? BLACK : WHITE;
-                    triggerEndGame(false, winner);
+                    triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
                 } else {
-                    finalizeTurn(); // Hàm này đã có: đổi player, reset timer, update King check
+                    finalizeTurn(); // Không bị chiếu + hết giờ = đổi lượt
                 }
                 return;
             }
         }
 
-        if (promotion) {
-            promoting();
-        } else {
-            handleMouseInput();
-        }
+        if (promotion) promoting(); else handleMouseInput();
     }
 
     private void handleMouseInput() {
@@ -212,9 +191,7 @@ public class GameController implements Runnable {
             }
         } else {
             boolean isMove = false;
-            for (int[] mv : validMoves) {
-                if (mv[0] == col && mv[1] == row) { isMove = true; break; }
-            }
+            for (int[] mv : validMoves) if (mv[0] == col && mv[1] == row) { isMove = true; break; }
 
             if (isMove) {
                 Piece captured = activeP.gettingHitP(col, row);
@@ -222,217 +199,72 @@ public class GameController implements Runnable {
                 activeP.finishMove();
                 copyPieces(simPieces, pieces);
 
-                // PHÁT TIẾNG MOVE/CAPTURE TỨC THỜI
                 if (captured != null) audioManager.playSFX("res/audio/sfx/capture.wav");
                 else if (isCastling) { audioManager.playSFX("res/audio/sfx/castle.wav"); isCastling = false; }
                 else audioManager.playSFX("res/audio/sfx/move.wav");
 
-                if (castlingP != null) castlingP.updatePosition();
-
-                // ĐỘ TRỄ 200ms CHO TIẾNG CHECK/WIN
                 Timer sfxTimer = new Timer(200, e -> {
-                    if (isKingInCheck() && !gameOver) {
-                        audioManager.playSFX("res/audio/sfx/check.wav");
-                    }
+                    if (isKingInCheck() && !gameOver) audioManager.playSFX("res/audio/sfx/check.wav");
                     ((Timer)e.getSource()).stop();
                 });
-                sfxTimer.setRepeats(false);
-                sfxTimer.start();
+                sfxTimer.setRepeats(false); sfxTimer.start();
 
-                // CẬP NHẬT TRẠNG THÁI GAME
                 if (isKingInCheck() && isCheckMate()) {
-                    triggerEndGame(false, currentColor == WHITE ? BLACK : WHITE);
+                    triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
                 } else if (isStaleMate()) {
                     triggerEndGame(true, null);
                 } else {
                     if (canPromote()) promotion = true; else finalizeTurn();
                 }
-            } else {
-                cancelOrSwitchSelection(col, row);
-            }
+            } else cancelOrSwitchSelection(col, row);
         }
         mouse.released = false;
     }
 
-    private void finalizeTurn() {
-        isClickedToMove = false;
-        activeP = null;
-        validMoves.clear();
-        changePlayer();
-        isKingInCheck(); // Đảm bảo King đối phương đỏ ngay khi vừa đổi lượt
-        resetTime();
-        isTimeRunning = true;
-    }
-
-    private void triggerEndGame(boolean draw, Integer winnerColor) {
-        this.gameOver = true;
-        this.isTimeRunning = false;
-        this.isDraw = draw;
-        GameState.currentState = State.GAME_OVER;
-
-        if (draw) audioManager.playSFX("res/audio/sfx/draw.wav");
-        else if (winnerColor != null) {
-            audioManager.playSFX(winnerColor == WHITE ? "res/audio/sfx/white_win.wav" : "res/audio/sfx/black_win.wav");
-        }
-    }
-
-    private void changePlayer() {
-        currentColor = (currentColor == WHITE) ? BLACK : WHITE;
-        for (Piece p : pieces) if (p.color == currentColor) p.twoStepped = false;
-    }
-
-    public boolean isKingInCheck() {
-        Piece king = getKing(false);
-        if (king == null) return false;
-        for (Piece p : simPieces) {
-            if (p.color != king.color && p.canMove(king.col, king.row)) {
-                checkingP = p;
-                return true;
-            }
-        }
-        checkingP = null;
-        return false;
-    }
-
-    public Piece getKing(boolean opponent) {
-        int colorToFind = opponent ? (currentColor == WHITE ? BLACK : WHITE) : currentColor;
-        for (Piece piece : simPieces) {
-            if (piece.type == Type.KING && piece.color == colorToFind) return piece;
-        }
-        return null;
-    }
-
-    public Piece getCheckingP() { return checkingP; }
-
-    public void setPieces() {
-        pieces.clear();
-        ChessSetupUtility.setupStandardGame(this.pieces);
-        for (Piece p : this.pieces) {
-            p.image = reloadPieceImage(p);
-            p.updatePosition();
-        }
-    }
-
-    public void copyPieces(CopyOnWriteArrayList<Piece> src, CopyOnWriteArrayList<Piece> tgt) {
-        tgt.clear();
-        tgt.addAll(src);
-    }
-
-    public void resetTime() {
-        timeLeft = 10;
-        lastSecond = System.currentTimeMillis();
-    }
-
-    private void calculateValidMoves(Piece p) {
-        validMoves.clear();
-        if (p == null) return;
-        for (int r = 0; r < 8; r++) {
-            for (int c = 0; c < 8; c++) {
-                if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) {
-                    int type = (p.gettingHitP(c, r) != null || (p.type == Type.PAWN && c != p.col)) ? 1 : 0;
-                    validMoves.add(new int[] { c, r, type });
-                }
-            }
-        }
-    }
-
-    private boolean simulateMoveAndKingSafe(Piece p, int tc, int tr) {
-        int oR = p.row, oC = p.col;
-        Piece cap = p.gettingHitP(tc, tr);
-        if (cap != null) simPieces.remove(cap);
-        p.col = tc; p.row = tr;
-        boolean safe = !opponentsCanCaptureKing();
-        p.col = oC; p.row = oR;
-        if (cap != null) simPieces.add(cap);
-        return safe;
-    }
-
-    public void simulateClickToMove(int tc, int tr) {
-        copyPieces(pieces, simPieces);
-        if (castlingP != null) {
-            castlingP.col = castlingP.preCol;
-            castlingP.x = castlingP.getX(castlingP.col);
-            castlingP = null;
-        }
-        activeP.canMove(tc, tr);
-        if (activeP.hittingP != null) simPieces.remove(activeP.hittingP);
-        activeP.col = tc;
-        activeP.row = tr;
-        if (castlingP != null) {
-            if (castlingP.col == 0) castlingP.col += 3;
-            else if (castlingP.col == 7) castlingP.col -= 2;
-            castlingP.x = castlingP.getX(castlingP.col);
-            isCastling = true;
-        }
-    }
-
-    private boolean opponentsCanCaptureKing() {
-        Piece king = getKing(false);
-        if (king == null) return false;
-        for (Piece p : simPieces) if (p.color != king.color && p.canMove(king.col, king.row)) return true;
-        return false;
-    }
-
-    private boolean isCheckMate() {
-        if (!isKingInCheck()) return false;
-        for (Piece p : simPieces) {
-            if (p.color != currentColor) continue;
-            for (int r = 0; r < 8; r++) {
-                for (int c = 0; c < 8; c++) {
-                    if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private boolean isStaleMate() {
-        if (isKingInCheck()) return false;
-        for (Piece p : simPieces) {
-            if (p.color != currentColor) continue;
-            for (int r = 0; r < 8; r++) {
-                for (int c = 0; c < 8; c++) {
-                    if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) return false;
-                }
-            }
-        }
-        return true;
-    }
-
+    /**
+     * LOGIC MỚI: Quét bàn cờ hiện tại để xác định quân nào thiếu so với chuẩn (phong cấp thực tế).
+     */
     private boolean canPromote() {
         if (activeP == null || activeP.type != Type.PAWN) return false;
         if ((activeP.color == WHITE && activeP.row == 0) || (activeP.color == BLACK && activeP.row == 7)) {
             promoPieces.clear();
-            int row = 7;
 
-            // Gán 4 quân vào Sidebar sát lề bàn cờ (Cột logic 8, 9, 10, 11)
-            promoPieces.add(new Queen(currentColor, row, 8));
-            promoPieces.add(new Rook(currentColor, row, 9));
-            promoPieces.add(new Bishop(currentColor, row, 10));
-            promoPieces.add(new Knight(currentColor, row, 11));
-
-            for (Piece p : promoPieces) {
-                p.image = reloadPieceImage(p);
-                p.x = p.getX(p.col); // Tọa độ X sẽ là 600, 675, 750... sát bàn cờ
-                p.y = p.getY(p.row); // Tọa độ Y sẽ là 0 hoặc 525 (hàng 0 hoặc 7)
+            // Đếm số lượng quân hiện có trên bàn của phe hiện tại
+            int q = 0, r = 0, b = 0, n = 0;
+            for (Piece p : simPieces) {
+                if (p.color == currentColor) {
+                    if (p.type == Type.QUEEN) q++;
+                    else if (p.type == Type.ROOK) r++;
+                    else if (p.type == Type.BISHOP) b++;
+                    else if (p.type == Type.KNIGHT) n++;
+                }
             }
-            return true;
+
+            int displayRow = 7; // Cố định hàng 7 Sidebar
+
+            // So sánh với đội hình xuất phát (1 Hậu, 2 Xe, 2 Tượng, 2 Mã)
+            if (q < 1) addPromo(Type.QUEEN, displayRow);
+            if (r < 2) addPromo(Type.ROOK, displayRow);
+            if (b < 2) addPromo(Type.BISHOP, displayRow);
+            if (n < 2) addPromo(Type.KNIGHT, displayRow);
+
+            return !promoPieces.isEmpty();
         }
         return false;
     }
 
-    private void promoting() {
-        if (!mouse.released) return;
-
-        for (Piece p : promoPieces) {
-            // Kiểm tra click dựa trên vùng pixel (x, y) đã được GamePanel gán
-            if (mouse.x >= p.x && mouse.x <= p.x + Board.SQUARE_SIZE &&
-                    mouse.y >= p.y && mouse.y <= p.y + Board.SQUARE_SIZE) {
-                replacePawnAndFinish(p);
-                break;
-            }
+    private void addPromo(Type t, int r) {
+        int c = 8 + promoPieces.size();
+        Piece p = null;
+        if (t == Type.QUEEN) p = new Queen(currentColor, r, c);
+        else if (t == Type.ROOK) p = new Rook(currentColor, r, c);
+        else if (t == Type.BISHOP) p = new Bishop(currentColor, r, c);
+        else if (t == Type.KNIGHT) p = new Knight(currentColor, r, c);
+        if (p != null) {
+            p.image = reloadPieceImage(p);
+            p.x = p.getX(p.col); p.y = p.getY(p.row);
+            promoPieces.add(p);
         }
-        mouse.released = false;
     }
 
     private void replacePawnAndFinish(Piece p) {
@@ -441,67 +273,116 @@ public class GameController implements Runnable {
         else if (p.type == Type.ROOK) newP = new Rook(currentColor, activeP.row, activeP.col);
         else if (p.type == Type.BISHOP) newP = new Bishop(currentColor, activeP.row, activeP.col);
         else if (p.type == Type.KNIGHT) newP = new Knight(currentColor, activeP.row, activeP.col);
+
         if (newP != null) {
-            newP.image = reloadPieceImage(newP);
-            newP.updatePosition();
-            simPieces.remove(activeP);
-            simPieces.add(newP);
-            copyPieces(simPieces, pieces);
+            newP.image = reloadPieceImage(newP); newP.updatePosition();
+            simPieces.remove(activeP); simPieces.add(newP); copyPieces(simPieces, pieces);
         }
         audioManager.playSFX("res/audio/sfx/promote.wav");
-        promotion = false;
-        finalizeTurn();
+        promotion = false; finalizeTurn();
     }
 
-    private boolean isInsufficientMaterial() {
-        for (Piece p : simPieces) if (p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN) return false;
-        return simPieces.size() <= 3;
+    private void promoting() {
+        if (!mouse.released) return;
+        for (Piece p : promoPieces) {
+            if (mouse.x >= p.x && mouse.x <= p.x + Board.SQUARE_SIZE &&
+                    mouse.y >= p.y && mouse.y <= p.y + Board.SQUARE_SIZE) {
+                replacePawnAndFinish(p); break;
+            }
+        }
+        mouse.released = false;
     }
 
-    public void saveGame(int slot, BufferedImage snapshot) {
+    private void finalizeTurn() {
+        isClickedToMove = false; activeP = null; validMoves.clear();
+        currentColor = (currentColor == WHITE) ? BLACK : WHITE;
+        for (Piece p : pieces) if (p.color == currentColor) p.twoStepped = false;
+        isKingInCheck(); resetTime(); isTimeRunning = true;
+    }
+
+    // --- CÁC PHƯƠNG THỨC LƯU/TẢI (Sửa lỗi image_23f735) ---
+    public void saveGame(int slot, BufferedImage img) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame_" + slot + ".dat"))) {
             oos.writeObject(new SaveData(new ArrayList<>(this.pieces), this.currentColor, this.timeLeft));
-            if (snapshot != null) ImageIO.write(snapshot, "png", new File("thumbnail_" + slot + ".png"));
-        } catch (Exception e) { e.printStackTrace(); }
-    }
-
-    public BufferedImage getSlotThumbnail(int slot) {
-        try { File f = new File("thumbnail_" + slot + ".png"); return f.exists() ? ImageIO.read(f) : null; }
-        catch (Exception e) { return null; }
+            if (img != null) ImageIO.write(img, "png", new File("thumbnail_" + slot + ".png"));
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
     public void loadGame(int slot) {
         File f = new File("savegame_" + slot + ".dat"); if (!f.exists()) return;
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f))) {
             SaveData d = (SaveData) ois.readObject();
-            this.pieces.clear();
-            this.pieces.addAll(d.pieces);
-            this.currentColor = d.currentColor;
-            this.timeLeft = d.timeLeft;
-            for (Piece p : this.pieces) { p.image = reloadPieceImage(p); p.updatePosition(); }
-            copyPieces(this.pieces, simPieces);
-            gamePanel = new GamePanel(this);
-            showPanel(gamePanel);
-            audioManager.playBGM(GAME_BGM);
-            GameState.setState(State.PLAYING);
-            isTimeRunning = true;
+            pieces.clear(); pieces.addAll(d.pieces);
+            currentColor = d.currentColor; timeLeft = d.timeLeft;
+            for (Piece p : pieces) { p.image = reloadPieceImage(p); p.updatePosition(); }
+            copyPieces(pieces, simPieces);
+            gamePanel = new GamePanel(this); showPanel(gamePanel);
+            audioManager.playBGM("res/audio/bgm/game_theme.wav");
+            GameState.setState(State.PLAYING); isTimeRunning = true;
             if (gameThread == null || !gameThread.isAlive()) { gameThread = new Thread(this); gameThread.start(); }
         } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    public BufferedImage getSlotThumbnail(int slot) {
+        try { File f = new File("thumbnail_" + slot + ".png"); return f.exists() ? ImageIO.read(f) : null; }
+        catch (IOException e) { return null; }
     }
 
     public String getSlotMetadata(int slot) {
         File f = new File("savegame_" + slot + ".dat"); if (!f.exists()) return "Empty Slot";
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f))) {
-            SaveData d = (SaveData) ois.readObject(); return d.saveTime != null ? d.saveTime : "Unknown Date";
-        } catch (Exception e) { return "Corrupted Data"; }
+            SaveData d = (SaveData) ois.readObject(); return d.saveTime;
+        } catch (Exception e) { return "Empty"; }
     }
 
-    private BufferedImage reloadPieceImage(Piece p) {
-        String pre = (p.color == WHITE) ? "w" : "b";
-        String name = p.type.toString().substring(0, 1).toUpperCase() + p.type.toString().substring(1).toLowerCase();
-        return p.getImage("/piece/" + pre + name);
+    // --- CÁC PHƯƠNG THỨC TIỆN ÍCH (Sửa lỗi image_245c6a) ---
+    public boolean isInsufficientMaterial() {
+        for (Piece p : simPieces) if (p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN) return false;
+        return simPieces.size() <= 3;
     }
 
+    private void updateCursorState() {
+        int col = mouse.x / Board.SQUARE_SIZE, row = mouse.y / Board.SQUARE_SIZE; boolean h = false;
+        if (activeP == null) {
+            for (Piece p : simPieces) if (p.color == currentColor && p.col == col && p.row == row) h = true;
+        } else {
+            for (int[] mv : validMoves) if (mv[0] == col && mv[1] == row) h = true;
+        }
+        window.setCursor(Cursor.getPredefinedCursor(h ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    public boolean isKingInCheck() {
+        Piece king = getKing(false); if (king == null) return false;
+        for (Piece p : simPieces) if (p.color != king.color && p.canMove(king.col, king.row)) { checkingP = p; return true; }
+        checkingP = null; return false;
+    }
+
+    public Piece getKing(boolean opponent) {
+        int color = opponent ? ((currentColor == WHITE) ? BLACK : WHITE) : currentColor;
+        for (Piece p : simPieces) if (p.type == Type.KING && p.color == color) return p;
+        return null;
+    }
+
+    private void triggerEndGame(boolean draw, Integer win) {
+        this.gameOver = true; this.isTimeRunning = false; this.isDraw = draw;
+        GameState.currentState = State.GAME_OVER;
+        if (draw) audioManager.playSFX("res/audio/sfx/draw.wav");
+        else if (win != null) audioManager.playSFX(win == WHITE ? "res/audio/sfx/white_win.wav" : "res/audio/sfx/black_win.wav");
+    }
+
+    public void setPieces() { pieces.clear(); ChessSetupUtility.setupStandardGame(this.pieces); for (Piece p : this.pieces) { p.image = reloadPieceImage(p); p.updatePosition(); } }
+    public void copyPieces(CopyOnWriteArrayList<Piece> src, CopyOnWriteArrayList<Piece> tgt) { tgt.clear(); tgt.addAll(src); }
+    public void resetTime() { timeLeft = 10; lastSecond = System.currentTimeMillis(); }
+    private BufferedImage reloadPieceImage(Piece p) { String pre = (p.color == WHITE) ? "w" : "b"; String name = p.type.toString().substring(0, 1).toUpperCase() + p.type.toString().substring(1).toLowerCase(); return p.getImage("/piece/" + pre + name); }
+    public void simulateClickToMove(int tc, int tr) { copyPieces(pieces, simPieces); if (castlingP != null) { castlingP.col = castlingP.preCol; castlingP.x = castlingP.getX(castlingP.col); castlingP = null; } activeP.canMove(tc, tr); if (activeP.hittingP != null) simPieces.remove(activeP.hittingP); activeP.col = tc; activeP.row = tr; if (castlingP != null) { if (castlingP.col == 0) castlingP.col += 3; else if (castlingP.col == 7) castlingP.col -= 2; castlingP.x = castlingP.getX(castlingP.col); isCastling = true; } }
+    private void calculateValidMoves(Piece p) { validMoves.clear(); if (p == null) return; for (int r = 0; r < 8; r++) for (int c = 0; c < 8; c++) if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) { int type = (p.gettingHitP(c, r) != null || (p.type == Type.PAWN && c != p.col)) ? 1 : 0; validMoves.add(new int[] { c, r, type }); } }
+    private boolean simulateMoveAndKingSafe(Piece p, int tc, int tr) { int oR = p.row, oC = p.col; Piece cap = p.gettingHitP(tc, tr); if (cap != null) simPieces.remove(cap); p.col = tc; p.row = tr; boolean safe = !opponentsCanCaptureKing(); p.col = oC; p.row = oR; if (cap != null) simPieces.add(cap); return safe; }
+    private boolean opponentsCanCaptureKing() { Piece king = getKing(false); if (king == null) return false; for (Piece p : simPieces) if (p.color != king.color && p.canMove(king.col, king.row)) return true; return false; }
+    private boolean isCheckMate() { if (!isKingInCheck()) return false; for (Piece p : simPieces) if (p.color == currentColor) for (int r = 0; r < 8; r++) for (int c = 0; c < 8; c++) if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) return false; return true; }
+    private boolean isStaleMate() { if (isKingInCheck()) return false; for (Piece p : simPieces) if (p.color == currentColor) for (int r = 0; r < 8; r++) for (int c = 0; c < 8; c++) if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) return false; return true; }
+    private void cancelOrSwitchSelection(int c, int r) { activeP = null; isClickedToMove = false; validMoves.clear(); for (Piece p : simPieces) if (p.color == currentColor && p.col == c && p.row == r) { activeP = p; calculateValidMoves(activeP); isClickedToMove = true; break; } }
+
+    // --- GETTERS ---
     public int getCurrentColor() { return currentColor; }
     public CopyOnWriteArrayList<Piece> getSimPieces() { return simPieces; }
     public Board getBoard() { return board; }
@@ -514,20 +395,5 @@ public class GameController implements Runnable {
     public boolean isClickedToMove() { return isClickedToMove; }
     public ArrayList<int[]> getValidMoves() { return validMoves; }
     public AudioManager getAudioManager() { return audioManager; }
-
-    private void updateCursorState() {
-        int col = mouse.x / Board.SQUARE_SIZE; int row = mouse.y / Board.SQUARE_SIZE; boolean h = false;
-        if (activeP == null) { for (Piece p : simPieces) if (p.color == currentColor && p.col == col && p.row == row) h = true; }
-        else { for (int[] mv : validMoves) if (mv[0] == col && mv[1] == row) h = true; }
-        window.setCursor(Cursor.getPredefinedCursor(h ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
-    }
-
-    private void cancelOrSwitchSelection(int col, int row) {
-        activeP = null; isClickedToMove = false; validMoves.clear();
-        for (Piece piece : simPieces) {
-            if (piece.color == currentColor && piece.col == col && piece.row == row) {
-                activeP = piece; calculateValidMoves(activeP); isClickedToMove = true; break;
-            }
-        }
-    }
+    public Piece getCheckingP() { return checkingP; }
 }
