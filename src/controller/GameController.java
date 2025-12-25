@@ -173,14 +173,14 @@ public class GameController implements Runnable {
             timeLeft--;
 
             if (timeLeft <= 0) {
-                timeLeft = 0; // Đảm bảo không âm
-                isTimeRunning = false;
-
-                // Theo luật cờ vua: Hết giờ là THUA ngay lập tức (Timeout)
-                // currentColor là người đang cầm lượt và để hết giờ -> đối phương thắng
-                int winner = (currentColor == WHITE) ? BLACK : WHITE;
-                triggerEndGame(false, winner);
-                return; // Thoát ngay để không xử lý mouse input phía dưới
+                if (isKingInCheck()) {
+                    isTimeRunning = false;
+                    int winner = (currentColor == WHITE) ? BLACK : WHITE;
+                    triggerEndGame(false, winner);
+                } else {
+                    finalizeTurn(); // Hàm này đã có: đổi player, reset timer, update King check
+                }
+                return;
             }
         }
 
