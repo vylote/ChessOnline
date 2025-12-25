@@ -173,7 +173,10 @@ public class GameController implements Runnable {
             timeLeft--;
 
             if (timeLeft <= 0) {
-                if (isKingInCheck()) {
+                if (promotion) {
+                    // TỰ ĐỘNG PHONG CẤP THÀNH HẬU KHI HẾT GIỜ
+                    replacePawnAndFinish(promoPieces.get(0));
+                } else if (isKingInCheck()) {
                     isTimeRunning = false;
                     int winner = (currentColor == WHITE) ? BLACK : WHITE;
                     triggerEndGame(false, winner);
@@ -398,14 +401,36 @@ public class GameController implements Runnable {
 
     private boolean canPromote() {
         if (activeP == null || activeP.type != Type.PAWN) return false;
-        return (activeP.color == WHITE && activeP.row == 0) || (activeP.color == BLACK && activeP.row == 7);
+        if ((activeP.color == WHITE && activeP.row == 0) || (activeP.color == BLACK && activeP.row == 7)) {
+            promoPieces.clear();
+            int row = 7;
+
+            // Gán 4 quân vào Sidebar sát lề bàn cờ (Cột logic 8, 9, 10, 11)
+            promoPieces.add(new Queen(currentColor, row, 8));
+            promoPieces.add(new Rook(currentColor, row, 9));
+            promoPieces.add(new Bishop(currentColor, row, 10));
+            promoPieces.add(new Knight(currentColor, row, 11));
+
+            for (Piece p : promoPieces) {
+                p.image = reloadPieceImage(p);
+                p.x = p.getX(p.col); // Tọa độ X sẽ là 600, 675, 750... sát bàn cờ
+                p.y = p.getY(p.row); // Tọa độ Y sẽ là 0 hoặc 525 (hàng 0 hoặc 7)
+            }
+            return true;
+        }
+        return false;
     }
 
     private void promoting() {
-        int selCol = mouse.x / Board.SQUARE_SIZE, selRow = mouse.y / Board.SQUARE_SIZE;
         if (!mouse.released) return;
+
         for (Piece p : promoPieces) {
-            if (p.col == selCol && p.row == selRow) { replacePawnAndFinish(p); break; }
+            // Kiểm tra click dựa trên vùng pixel (x, y) đã được GamePanel gán
+            if (mouse.x >= p.x && mouse.x <= p.x + Board.SQUARE_SIZE &&
+                    mouse.y >= p.y && mouse.y <= p.y + Board.SQUARE_SIZE) {
+                replacePawnAndFinish(p);
+                break;
+            }
         }
         mouse.released = false;
     }

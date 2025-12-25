@@ -3,6 +3,7 @@ package view;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import javax.swing.*;
 import controller.GameController;
 import controller.Mouse;
@@ -23,7 +24,6 @@ public class GamePanel extends JPanel {
         setBackground(Color.BLACK);
         setFocusable(true);
 
-        // --- THÊM KEY BINDINGS CHO PHÍM ESC ---
         setupKeyBindings();
 
         MouseAdapter ma = new MouseAdapter() {
@@ -55,28 +55,19 @@ public class GamePanel extends JPanel {
         addMouseMotionListener(ma);
     }
 
-    // --- LOGIC XỬ LÝ PHÍM ESC ---
     private void setupKeyBindings() {
         InputMap im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = getActionMap();
-
-        // Gán phím ESCAPE với hành động "returnToMenu"
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "returnToMenu");
-
-        am.put("returnToMenu", new AbstractAction() {
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "escAction");
+        am.put("escAction", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                // Chỉ cho phép ESC thoát ra Menu khi đã Game Over
-                if (controller.isGameOver()) {
-                    controller.exitToMenu();
-                } else {
-                    controller.pauseGame();
-                }
+                if (controller.isGameOver()) controller.exitToMenu();
+                else controller.pauseGame();
             }
         });
     }
 
-    // --- PHƯƠNG THỨC CHỤP ẢNH MÀN HÌNH ---
     public BufferedImage getGameSnapshot() {
         BufferedImage image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
@@ -109,7 +100,7 @@ public class GamePanel extends JPanel {
     private void drawGame(Graphics2D g2) {
         Piece activeP = controller.getActiveP();
 
-        // 1. TÔ ĐỎ KING NGAY LẬP TỨC KHI BỊ CHIẾU
+        // 1. TÔ ĐỎ KING KHI BỊ CHIẾU
         if (controller.getCheckingP() != null) {
             Piece king = controller.getKing(false);
             if (king != null) {
@@ -118,25 +109,61 @@ public class GamePanel extends JPanel {
             }
         }
 
-        // 2. TÔ MÀU CÁC Ô DI CHUYỂN HỢP LỆ (HIGHLIGHT)
-        if (activeP != null && controller.isClickedToMove()) {
-            g2.setColor(new Color(255, 165, 0, 150)); // Ô quân đang chọn
+        // 2. HIGHLIGHT NƯỚC ĐI
+        if (activeP != null && controller.isClickedToMove() && !controller.isPromotion()) {
+            g2.setColor(new Color(255, 165, 0, 150));
             g2.fillRect(activeP.preCol * Board.SQUARE_SIZE, activeP.preRow * Board.SQUARE_SIZE, Board.SQUARE_SIZE, Board.SQUARE_SIZE);
 
             for (int[] move : controller.getValidMoves()) {
-                int type = move[2]; // 0: Trống, 1: Ăn quân
+                int type = move[2];
                 g2.setColor(type == 0 ? new Color(0, 255, 0, 100) : new Color(255, 0, 0, 100));
                 g2.fillRect(move[0] * Board.SQUARE_SIZE, move[1] * Board.SQUARE_SIZE, Board.SQUARE_SIZE, Board.SQUARE_SIZE);
             }
         }
 
+        // 3. VẼ CÁC QUÂN CỜ
         for (Piece p : controller.getSimPieces()) p.draw(g2);
-        if (activeP != null) activeP.draw(g2);
+        if (activeP != null && !controller.isPromotion()) activeP.draw(g2);
+
+        // 4. VẼ UI THĂNG CẤP Ở SIDEBAR
+        if (controller.isPromotion()) {
+            drawPromotionUI(g2);
+        }
+    }
+
+    private void drawPromotionUI(Graphics2D g2) {
+        // Làm tối bàn cờ
+        g2.setColor(new Color(0, 0, 0, 150));
+        g2.fillRect(0, 0, BOARD_W, LOGIC_H);
+
+        ArrayList<Piece> promoPieces = controller.getPromoPieces();
+        int size = Board.SQUARE_SIZE;
+
+        for (Piece p : promoPieces) {
+            // Vẽ ô Slot Minecraft sát lề bàn cờ
+            int x = p.col * size;
+            int y = p.row * size;
+
+            // Vẽ nền xám slot
+            g2.setColor(new Color(139, 139, 139));
+            g2.fillRect(x, y, size, size);
+
+            // Vẽ viền 3D nổi (Minecraft Hotbar Style)
+            g2.setStroke(new BasicStroke(3));
+            g2.setColor(new Color(220, 220, 220)); // Cạnh sáng
+            g2.drawLine(x, y, x + size, y);
+            g2.drawLine(x, y, x, y + size);
+            g2.setColor(new Color(60, 60, 60));   // Cạnh tối
+            g2.drawLine(x + size, y, x + size, y + size);
+            g2.drawLine(x, y + size, x + size, y + size);
+
+            p.draw(g2); // Vẽ quân cờ lên trên
+        }
     }
 
     private void drawPhysicalPauseButton(Graphics2D g2) {
         if (GameState.currentState != State.PLAYING || controller.isGameOver()) return;
-        int x = getWidth() - 60, y = 15, size = 45;
+        int x = getWidth() - 55, y = 10, size = 45;
         g2.setColor(isHoveringPause ? new Color(90, 90, 90) : new Color(50, 50, 50));
         g2.fillRoundRect(x, y, size, size, 10, 10);
         g2.setColor(Color.WHITE); g2.setStroke(new BasicStroke(2));
@@ -151,29 +178,45 @@ public class GamePanel extends JPanel {
         g2.drawString("TIME: " + controller.getTimeLeft(), x, 250);
     }
 
+    private Piece getPieceAt(int mx, int my) {
+        // Kiểm tra click vào các slot thăng cấp
+        if (controller.isPromotion()) {
+            int slotSize = Board.SQUARE_SIZE;
+            for (Piece p : controller.getPromoPieces()) {
+                if (mx >= p.x && mx < p.x + slotSize && my >= p.y && my < p.y + slotSize) {
+                    return p;
+                }
+            }
+        }
+        // Kiểm tra click vào bàn cờ
+        int c = mx / Board.SQUARE_SIZE;
+        int r = my / Board.SQUARE_SIZE;
+        if (c >= 0 && c < 8 && r >= 0 && r < 8) {
+            for (Piece p : controller.getSimPieces()) if (p.col == c && p.row == r) return p;
+        }
+        return null;
+    }
+
     private void updateCursor() {
         boolean h = isHoveringPause;
-        if (!h && mouse.x < BOARD_W) {
-            Piece p = getPieceAt(mouse.x / Board.SQUARE_SIZE, mouse.y / Board.SQUARE_SIZE);
-            if (p != null && p.color == controller.getCurrentColor()) h = true;
+        if (!h) {
+            Piece p = getPieceAt(mouse.x, mouse.y);
+            if (p != null) {
+                // Nếu là quân thăng cấp HOẶC quân mình trên bàn cờ
+                if (controller.getPromoPieces().contains(p) || p.color == controller.getCurrentColor()) {
+                    h = true;
+                }
+            }
         }
         setCursor(new Cursor(h ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
     }
 
-    private Piece getPieceAt(int c, int r) {
-        for (Piece p : controller.getSimPieces()) if (p.col == c && p.row == r) return p;
-        return null;
-    }
-
     private void drawGameOver(Graphics2D g2) {
-        // Phủ lớp nền mờ tối
         g2.setColor(new Color(0, 0, 0, 200));
         double s = (double) getHeight() / LOGIC_H;
         int totalLW = (int) (getWidth() / s);
         g2.fillRect(0, 0, totalLW, LOGIC_H);
-
         g2.setFont(new Font("Arial", Font.BOLD, 60));
-
         if (controller.isDraw()) {
             g2.setColor(Color.YELLOW);
             String msg = "DRAW GAME";
@@ -183,7 +226,6 @@ public class GamePanel extends JPanel {
             String winner = (controller.getCurrentColor() == 0) ? "BLACK WINS!" : "WHITE WINS!";
             g2.drawString(winner, totalLW / 2 - g2.getFontMetrics().stringWidth(winner)/2, 300);
         }
-
         g2.setFont(new Font("Arial", Font.PLAIN, 20));
         g2.setColor(Color.WHITE);
         String subMsg = "Press ESC to return to Menu";

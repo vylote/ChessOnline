@@ -114,4 +114,22 @@ public class ChessSetupUtility {
         pieces.add(new King(BLACK, 1, 2));
         pieces.add(new Rook(BLACK, 3, 7));
     }
+
+    public static void testPromotion_White(List<Piece> pieces) {
+        pieces.clear();
+        pieces.add(new King(WHITE, 7, 4));
+        pieces.add(new King(BLACK, 0, 0));
+
+        // Tốt trắng tại hàng 1 (hệ 0-7), chuẩn bị tiến lên hàng 0
+        pieces.add(new Pawn(WHITE, 1, 4));
+    }
+
+    public static void testPromotion_Black(List<Piece> pieces) {
+        pieces.clear();
+        pieces.add(new King(WHITE, 7, 7));
+        pieces.add(new King(BLACK, 0, 0));
+
+        // Tốt trắng tại hàng 1 (hệ 0-7), chuẩn bị tiến lên hàng 0
+        pieces.add(new Pawn(BLACK, 6, 4));
+    }
 }
