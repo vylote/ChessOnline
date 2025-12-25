@@ -201,4 +201,11 @@ public class MenuPanel extends JPanel {
         g2.setColor(Color.WHITE); g2.setFont(new Font("Arial", Font.BOLD, 18));
         g2.drawString(txt, x + (BTN_W - g2.getFontMetrics().stringWidth(txt))/2, y + 32);
     }
+
+    public void resetMenu() {
+        this.isLoadMode = false;
+        this.isSettingsMode = false;
+        this.hoveredIndex = -1;
+        repaint();
+    }
 }
