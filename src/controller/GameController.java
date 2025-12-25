@@ -14,7 +14,7 @@ import utility.AudioManager;
 import view.*;
 
 /**
- * Controller hoàn chỉnh quản lý logic Game, Save/Load và Phong cấp thực tế.
+ * Controller trung tâm hoàn chỉnh: Sửa lỗi nhập thành overlap, Phong cấp thực tế và Save/Load.
  */
 public class GameController implements Runnable {
     // --- GIAO DIỆN ---
@@ -36,7 +36,7 @@ public class GameController implements Runnable {
     private long lastSecond = System.currentTimeMillis();
     private int timeLeft = 10;
 
-    // --- THÀNH PHẦN LOGIC (Sử dụng CopyOnWriteArrayList chống lỗi đa luồng) ---
+    // --- THÀNH PHẦN LOGIC (An toàn đa luồng) ---
     private final Board board = new Board();
     public Mouse mouse = new Mouse();
     private final CopyOnWriteArrayList<Piece> pieces = new CopyOnWriteArrayList<>();
@@ -44,7 +44,7 @@ public class GameController implements Runnable {
 
     private final ArrayList<Piece> promoPieces = new ArrayList<>();
     private Piece activeP, checkingP;
-    public static Piece castlingP;
+    public static Piece castlingP; // Quân Xe dùng để nhập thành
     private final ArrayList<int[]> validMoves = new ArrayList<>();
 
     // --- ÂM THANH ---
@@ -73,6 +73,7 @@ public class GameController implements Runnable {
         copyPieces(pieces, simPieces);
         currentColor = WHITE;
         isDraw = false; gameOver = false; isClickedToMove = false; promotion = false;
+        castlingP = null; isCastling = false;
         resetTime();
 
         gamePanel = new GamePanel(this);
@@ -94,7 +95,7 @@ public class GameController implements Runnable {
         }
     }
 
-    // --- CÁC PHƯƠNG THỨC ĐIỀU KHIỂN GIAO DIỆN (Sửa lỗi image_246b90) ---
+    // --- ĐIỀU KHIỂN GIAO DIỆN (Sửa lỗi image_246b90, image_24cdc4, image_24e08a) ---
     public void pauseGame() {
         if (GameState.currentState == State.PLAYING) {
             isTimeRunning = false;
@@ -148,7 +149,6 @@ public class GameController implements Runnable {
 
     private void update() {
         if (GameState.currentState != State.PLAYING || gameOver) return;
-
         isKingInCheck();
 
         if (isInsufficientMaterial()) { triggerEndGame(true, null); return; }
@@ -164,12 +164,11 @@ public class GameController implements Runnable {
                 } else if (isKingInCheck()) {
                     triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
                 } else {
-                    finalizeTurn(); // Không bị chiếu + hết giờ = đổi lượt
+                    finalizeTurn();
                 }
                 return;
             }
         }
-
         if (promotion) promoting(); else handleMouseInput();
     }
 
@@ -197,6 +196,10 @@ public class GameController implements Runnable {
                 Piece captured = activeP.gettingHitP(col, row);
                 simulateClickToMove(col, row);
                 activeP.finishMove();
+
+                // Đồng bộ preCol/preRow cho Xe nếu nhập thành để tránh lỗi nhảy nước đi sau đó
+                if (isCastling && castlingP != null) castlingP.finishMove();
+
                 copyPieces(simPieces, pieces);
 
                 if (captured != null) audioManager.playSFX("res/audio/sfx/capture.wav");
@@ -222,14 +225,35 @@ public class GameController implements Runnable {
     }
 
     /**
-     * LOGIC MỚI: Quét bàn cờ hiện tại để xác định quân nào thiếu so với chuẩn (phong cấp thực tế).
+     * FIX LỖI NHẬP THÀNH OVERLAP: Gán chính xác cột đích và cập nhật pixel ngay lập tức.
+     */
+    public void simulateClickToMove(int tc, int tr) {
+        copyPieces(pieces, simPieces);
+        activeP.canMove(tc, tr);
+        if (activeP.hittingP != null) simPieces.remove(activeP.hittingP);
+
+        activeP.col = tc;
+        activeP.row = tr;
+
+        if (castlingP != null) {
+            // Nhập thành trái (Queenside): Vua cột 2, Xe cột 3
+            if (castlingP.col == 0) castlingP.col = 3;
+                // Nhập thành phải (Kingside): Vua cột 6, Xe cột 5
+            else if (castlingP.col == 7) castlingP.col = 5;
+
+            castlingP.x = castlingP.getX(castlingP.col);
+            castlingP.y = castlingP.getY(castlingP.row);
+            isCastling = true;
+        }
+    }
+
+    /**
+     * PHONG CẤP THỰC TẾ: Đếm quân trên bàn cờ, chỉ phong cấp quân đang thiếu.
      */
     private boolean canPromote() {
         if (activeP == null || activeP.type != Type.PAWN) return false;
         if ((activeP.color == WHITE && activeP.row == 0) || (activeP.color == BLACK && activeP.row == 7)) {
             promoPieces.clear();
-
-            // Đếm số lượng quân hiện có trên bàn của phe hiện tại
             int q = 0, r = 0, b = 0, n = 0;
             for (Piece p : simPieces) {
                 if (p.color == currentColor) {
@@ -239,10 +263,7 @@ public class GameController implements Runnable {
                     else if (p.type == Type.KNIGHT) n++;
                 }
             }
-
-            int displayRow = 7; // Cố định hàng 7 Sidebar
-
-            // So sánh với đội hình xuất phát (1 Hậu, 2 Xe, 2 Tượng, 2 Mã)
+            int displayRow = 7; // Sidebar hàng 7 kiểu Minecraft
             if (q < 1) addPromo(Type.QUEEN, displayRow);
             if (r < 2) addPromo(Type.ROOK, displayRow);
             if (b < 2) addPromo(Type.BISHOP, displayRow);
@@ -295,12 +316,14 @@ public class GameController implements Runnable {
 
     private void finalizeTurn() {
         isClickedToMove = false; activeP = null; validMoves.clear();
+        castlingP = null; // Quan trọng: Giải phóng Xe để lượt sau không nhảy vị trí
+        isCastling = false;
         currentColor = (currentColor == WHITE) ? BLACK : WHITE;
         for (Piece p : pieces) if (p.color == currentColor) p.twoStepped = false;
         isKingInCheck(); resetTime(); isTimeRunning = true;
     }
 
-    // --- CÁC PHƯƠNG THỨC LƯU/TẢI (Sửa lỗi image_23f735) ---
+    // --- LƯU / TẢI (Fix lỗi image_23f735) ---
     public void saveGame(int slot, BufferedImage img) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame_" + slot + ".dat"))) {
             oos.writeObject(new SaveData(new ArrayList<>(this.pieces), this.currentColor, this.timeLeft));
@@ -331,11 +354,11 @@ public class GameController implements Runnable {
     public String getSlotMetadata(int slot) {
         File f = new File("savegame_" + slot + ".dat"); if (!f.exists()) return "Empty Slot";
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f))) {
-            SaveData d = (SaveData) ois.readObject(); return d.saveTime;
+            SaveData d = (SaveData) ois.readObject(); return (d.saveTime != null) ? d.saveTime : "Unknown";
         } catch (Exception e) { return "Empty"; }
     }
 
-    // --- CÁC PHƯƠNG THỨC TIỆN ÍCH (Sửa lỗi image_245c6a) ---
+    // --- TIỆN ÍCH (Fix lỗi image_245c6a, image_24cda4) ---
     public boolean isInsufficientMaterial() {
         for (Piece p : simPieces) if (p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN) return false;
         return simPieces.size() <= 3;
@@ -349,6 +372,12 @@ public class GameController implements Runnable {
             for (int[] mv : validMoves) if (mv[0] == col && mv[1] == row) h = true;
         }
         window.setCursor(Cursor.getPredefinedCursor(h ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    private BufferedImage reloadPieceImage(Piece p) {
+        String pre = (p.color == WHITE) ? "w" : "b";
+        String name = p.type.toString().substring(0, 1).toUpperCase() + p.type.toString().substring(1).toLowerCase();
+        return p.getImage("/piece/" + pre + name);
     }
 
     public boolean isKingInCheck() {
@@ -373,8 +402,6 @@ public class GameController implements Runnable {
     public void setPieces() { pieces.clear(); ChessSetupUtility.setupStandardGame(this.pieces); for (Piece p : this.pieces) { p.image = reloadPieceImage(p); p.updatePosition(); } }
     public void copyPieces(CopyOnWriteArrayList<Piece> src, CopyOnWriteArrayList<Piece> tgt) { tgt.clear(); tgt.addAll(src); }
     public void resetTime() { timeLeft = 10; lastSecond = System.currentTimeMillis(); }
-    private BufferedImage reloadPieceImage(Piece p) { String pre = (p.color == WHITE) ? "w" : "b"; String name = p.type.toString().substring(0, 1).toUpperCase() + p.type.toString().substring(1).toLowerCase(); return p.getImage("/piece/" + pre + name); }
-    public void simulateClickToMove(int tc, int tr) { copyPieces(pieces, simPieces); if (castlingP != null) { castlingP.col = castlingP.preCol; castlingP.x = castlingP.getX(castlingP.col); castlingP = null; } activeP.canMove(tc, tr); if (activeP.hittingP != null) simPieces.remove(activeP.hittingP); activeP.col = tc; activeP.row = tr; if (castlingP != null) { if (castlingP.col == 0) castlingP.col += 3; else if (castlingP.col == 7) castlingP.col -= 2; castlingP.x = castlingP.getX(castlingP.col); isCastling = true; } }
     private void calculateValidMoves(Piece p) { validMoves.clear(); if (p == null) return; for (int r = 0; r < 8; r++) for (int c = 0; c < 8; c++) if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) { int type = (p.gettingHitP(c, r) != null || (p.type == Type.PAWN && c != p.col)) ? 1 : 0; validMoves.add(new int[] { c, r, type }); } }
     private boolean simulateMoveAndKingSafe(Piece p, int tc, int tr) { int oR = p.row, oC = p.col; Piece cap = p.gettingHitP(tc, tr); if (cap != null) simPieces.remove(cap); p.col = tc; p.row = tr; boolean safe = !opponentsCanCaptureKing(); p.col = oC; p.row = oR; if (cap != null) simPieces.add(cap); return safe; }
     private boolean opponentsCanCaptureKing() { Piece king = getKing(false); if (king == null) return false; for (Piece p : simPieces) if (p.color != king.color && p.canMove(king.col, king.row)) return true; return false; }
