@@ -147,7 +147,8 @@ public class GameController implements Runnable {
 
             if (delta >= 1) {
                 update();
-                if (gamePanel != null && GameState.currentState == State.PLAYING) {
+                // FIX: Luôn repaint nếu gamePanel tồn tại, không quan tâm trạng thái PLAYING hay GAME_OVER
+                if (gamePanel != null) {
                     gamePanel.repaint();
                 }
                 delta--;
@@ -155,31 +156,39 @@ public class GameController implements Runnable {
         }
     }
 
+    // --- Cập nhật lại phương thức update trong GameController.java ---
+
     private void update() {
         if (GameState.currentState != State.PLAYING || gameOver) return;
-
-        // Cập nhật King bị chiếu liên tục cho View tô đỏ
-        isKingInCheck();
 
         if (isInsufficientMaterial()) {
             triggerEndGame(true, null);
             return;
         }
 
+        // XỬ LÝ THỜI GIAN MƯỢT MÀ HƠN
         long now = System.currentTimeMillis();
-        if (now - lastSecond >= 1000 && isTimeRunning) {
+        if (isTimeRunning && now - lastSecond >= 1000) {
             lastSecond = now;
             timeLeft--;
 
             if (timeLeft <= 0) {
+                timeLeft = 0; // Đảm bảo không âm
                 isTimeRunning = false;
-                // NẾU HẾT GIỜ -> THUA NGAY (BẤT KỂ ĐANG BỊ CHIẾU HAY KHÔNG)
-                triggerEndGame(false, currentColor == WHITE ? BLACK : WHITE);
-                return;
+
+                // Theo luật cờ vua: Hết giờ là THUA ngay lập tức (Timeout)
+                // currentColor là người đang cầm lượt và để hết giờ -> đối phương thắng
+                int winner = (currentColor == WHITE) ? BLACK : WHITE;
+                triggerEndGame(false, winner);
+                return; // Thoát ngay để không xử lý mouse input phía dưới
             }
         }
 
-        if (promotion) promoting(); else handleMouseInput();
+        if (promotion) {
+            promoting();
+        } else {
+            handleMouseInput();
+        }
     }
 
     private void handleMouseInput() {

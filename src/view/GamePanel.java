@@ -23,6 +23,9 @@ public class GamePanel extends JPanel {
         setBackground(Color.BLACK);
         setFocusable(true);
 
+        // --- THÊM KEY BINDINGS CHO PHÍM ESC ---
+        setupKeyBindings();
+
         MouseAdapter ma = new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) { updateMouseAndHover(e); }
@@ -52,7 +55,28 @@ public class GamePanel extends JPanel {
         addMouseMotionListener(ma);
     }
 
-    // --- PHƯƠNG THỨC CHỤP ẢNH MÀN HÌNH (Sửa lỗi compilation) ---
+    // --- LOGIC XỬ LÝ PHÍM ESC ---
+    private void setupKeyBindings() {
+        InputMap im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = getActionMap();
+
+        // Gán phím ESCAPE với hành động "returnToMenu"
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "returnToMenu");
+
+        am.put("returnToMenu", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // Chỉ cho phép ESC thoát ra Menu khi đã Game Over
+                if (controller.isGameOver()) {
+                    controller.exitToMenu();
+                } else {
+                    controller.pauseGame();
+                }
+            }
+        });
+    }
+
+    // --- PHƯƠNG THỨC CHỤP ẢNH MÀN HÌNH ---
     public BufferedImage getGameSnapshot() {
         BufferedImage image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
@@ -152,17 +176,17 @@ public class GamePanel extends JPanel {
 
         if (controller.isDraw()) {
             g2.setColor(Color.YELLOW);
-            g2.drawString("DRAW GAME", totalLW / 2 - 180, 300);
+            String msg = "DRAW GAME";
+            g2.drawString(msg, totalLW / 2 - g2.getFontMetrics().stringWidth(msg)/2, 300);
         } else {
             g2.setColor(Color.GREEN);
-            // Xác định bên thắng: Nếu đang lượt White mà Game Over (do hết giờ/chiếu hết) -> Black thắng
             String winner = (controller.getCurrentColor() == 0) ? "BLACK WINS!" : "WHITE WINS!";
-            int xOffset = (winner.contains("BLACK")) ? 220 : 220; // Căn chỉnh chữ ra giữa
-            g2.drawString(winner, totalLW / 2 - xOffset, 300);
+            g2.drawString(winner, totalLW / 2 - g2.getFontMetrics().stringWidth(winner)/2, 300);
         }
 
         g2.setFont(new Font("Arial", Font.PLAIN, 20));
         g2.setColor(Color.WHITE);
-        g2.drawString("Press ESC to return to Menu", totalLW / 2 - 130, 360);
+        String subMsg = "Press ESC to return to Menu";
+        g2.drawString(subMsg, totalLW / 2 - g2.getFontMetrics().stringWidth(subMsg)/2, 360);
     }
 }
