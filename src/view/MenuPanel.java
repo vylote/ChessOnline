@@ -5,7 +5,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import javax.imageio.ImageIO;
 
 public class MenuPanel extends JPanel {
@@ -23,16 +22,20 @@ public class MenuPanel extends JPanel {
 
     private JSlider bgmSlider, sfxSlider;
 
-    // Tọa độ Y cố định cho các thành phần logic
-    private final int playY = 180, loadY = 240, settY = 300, exitY = 360, backY = 500;
+    // --- Cập nhật tọa độ Y (cách nhau 60px mỗi nút) ---
+    private final int playY = 160;
+    private final int multiY = 220; // Nút mới
+    private final int loadY = 280;
+    private final int settY = 340;
+    private final int exitY = 400;
+    private final int backY = 500;
+
     private final int[] slotY = {160, 240, 320, 400};
 
     public MenuPanel(GameController gc, JFrame frame) {
         this.controller = gc;
         setLayout(null);
         try {
-            // Sử dụng getResourceAsStream để đọc từ trong file JAR
-            // Lưu ý: Đường dẫn bắt đầu bằng "/" và bỏ "res/" nếu bạn đã Mark thư mục res là Resources Root
             backgroundImage = ImageIO.read(getClass().getResourceAsStream("/bg/menu_bg.png"));
         } catch (Exception e) {
             System.err.println("Không thể nạp ảnh nền Menu: " + e.getMessage());
@@ -59,7 +62,9 @@ public class MenuPanel extends JPanel {
                 } else if (isSettingsMode) {
                     if (isInside(lx, ly, btnX, backY)) isSettingsMode = false;
                 } else {
+                    // Logic xử lý Click Main Menu
                     if (isInside(lx, ly, btnX, playY)) controller.startNewGame();
+                    else if (isInside(lx, ly, btnX, multiY)) showMultiplayerDialog(); // Gọi hàm Multiplayer
                     else if (isInside(lx, ly, btnX, loadY)) { loadThumbnails(); isLoadMode = true; }
                     else if (isInside(lx, ly, btnX, settY)) isSettingsMode = true;
                     else if (isInside(lx, ly, btnX, exitY)) System.exit(0);
@@ -81,14 +86,15 @@ public class MenuPanel extends JPanel {
                     for (int i = 0; i < 4; i++) {
                         if (lx >= btnX && lx <= btnX + BTN_W && ly >= slotY[i] && ly <= slotY[i] + 70) hoveredIndex = i;
                     }
-                    if (isInside(lx, ly, btnX, backY)) hoveredIndex = 4;
+                    if (isInside(lx, ly, btnX, backY)) hoveredIndex = 5; // Index Back
                 } else if (isSettingsMode) {
-                    if (isInside(lx, ly, btnX, backY)) hoveredIndex = 4;
+                    if (isInside(lx, ly, btnX, backY)) hoveredIndex = 5;
                 } else {
                     if (isInside(lx, ly, btnX, playY)) hoveredIndex = 0;
-                    else if (isInside(lx, ly, btnX, loadY)) hoveredIndex = 1;
-                    else if (isInside(lx, ly, btnX, settY)) hoveredIndex = 2;
-                    else if (isInside(lx, ly, btnX, exitY)) hoveredIndex = 3;
+                    else if (isInside(lx, ly, btnX, multiY)) hoveredIndex = 1;
+                    else if (isInside(lx, ly, btnX, loadY)) hoveredIndex = 2;
+                    else if (isInside(lx, ly, btnX, settY)) hoveredIndex = 3;
+                    else if (isInside(lx, ly, btnX, exitY)) hoveredIndex = 4;
                 }
 
                 if (prevHover != hoveredIndex) {
@@ -101,16 +107,30 @@ public class MenuPanel extends JPanel {
         addMouseMotionListener(ma);
     }
 
+    // Hàm hiển thị lựa chọn Host/Join
+    private void showMultiplayerDialog() {
+        String[] options = {"Host Game", "Join Game", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this, "Chọn chế độ chơi mạng:", "Multiplayer",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+
+        if (choice == 0) { // Host
+            controller.setupMultiplayer(true, 0, null); // Mặc định Host màu Trắng (0)
+            JOptionPane.showMessageDialog(this, "Đang chờ người chơi kết nối tại Port 5555...");
+        } else if (choice == 1) { // Join
+            String ip = JOptionPane.showInputDialog(this, "Nhập địa chỉ IP của Host:", "127.0.0.1");
+            if (ip != null && !ip.isEmpty()) {
+                controller.setupMultiplayer(false, 1, ip);
+            }
+        }
+    }
+
     private void initSliders() {
         bgmSlider = new JSlider(0, 100, controller.getAudioManager().getBGMVolumeAsInt());
         sfxSlider = new JSlider(0, 100, controller.getAudioManager().getSFXVolumeAsInt());
-
         bgmSlider.setOpaque(false); sfxSlider.setOpaque(false);
         bgmSlider.setFocusable(false); sfxSlider.setFocusable(false);
-
         bgmSlider.addChangeListener(e -> controller.getAudioManager().setBGMVolumeFromSlider(bgmSlider.getValue()));
         sfxSlider.addChangeListener(e -> controller.getAudioManager().setSFXVolumeFromSlider(sfxSlider.getValue()));
-
         this.add(bgmSlider); this.add(sfxSlider);
     }
 
@@ -133,17 +153,14 @@ public class MenuPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // 1. Vẽ nền bao phủ kích thước thực
         if (backgroundImage != null) g2.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), null);
         g2.setColor(new Color(0, 0, 0, 160));
         g2.fillRect(0, 0, getWidth(), getHeight());
 
-        // 2. Tính Scale
         double s = (double)getHeight() / LOGIC_H;
         int centerX = (int)((getWidth() / s) / 2);
         int btnX = centerX - (BTN_W / 2);
 
-        // 3. Cập nhật vị trí Slider (Tọa độ vật lý)
         if (isSettingsMode) {
             bgmSlider.setBounds((int)((centerX + 10) * s), (int)(305 * s), (int)(150 * s), (int)(30 * s));
             sfxSlider.setBounds((int)((centerX + 10) * s), (int)(385 * s), (int)(150 * s), (int)(30 * s));
@@ -166,9 +183,10 @@ public class MenuPanel extends JPanel {
     private void drawMainUI(Graphics2D g2, int cx, int bx) {
         drawTitle(g2, "Chess Gemini", cx);
         drawStyledBtn(g2, bx, playY, "New Game", new Color(46, 204, 113), 0);
-        drawStyledBtn(g2, bx, loadY, "Load Game", new Color(52, 152, 219), 1);
-        drawStyledBtn(g2, bx, settY, "Settings", new Color(149, 165, 166), 2);
-        drawStyledBtn(g2, bx, exitY, "Exit", new Color(231, 76, 60), 3);
+        drawStyledBtn(g2, bx, multiY, "Multiplayer", new Color(155, 89, 182), 1); // Màu tím quý tộc cho Online
+        drawStyledBtn(g2, bx, loadY, "Load Game", new Color(52, 152, 219), 2);
+        drawStyledBtn(g2, bx, settY, "Settings", new Color(149, 165, 166), 3);
+        drawStyledBtn(g2, bx, exitY, "Exit", new Color(231, 76, 60), 4);
     }
 
     private void drawLoadUI(Graphics2D g2, int cx, int bx) {
@@ -184,7 +202,7 @@ public class MenuPanel extends JPanel {
             g2.setFont(new Font("Monospaced", Font.PLAIN, 12));
             g2.drawString(controller.getSlotMetadata(i+1), bx + 105, slotY[i] + 55);
         }
-        drawStyledBtn(g2, bx, backY, "BACK", Color.GRAY, 4);
+        drawStyledBtn(g2, bx, backY, "BACK", Color.GRAY, 5);
     }
 
     private void drawSettingsUI(Graphics2D g2, int cx, int bx) {
@@ -192,7 +210,7 @@ public class MenuPanel extends JPanel {
         g2.setColor(Color.WHITE); g2.setFont(new Font("Arial", Font.PLAIN, 20));
         g2.drawString("Music Volume", cx - 140, 325);
         g2.drawString("SFX Volume", cx - 140, 405);
-        drawStyledBtn(g2, bx, backY, "BACK", Color.GRAY, 4);
+        drawStyledBtn(g2, bx, backY, "BACK", Color.GRAY, 5);
     }
 
     private void drawTitle(Graphics2D g2, String txt, int cx) {
