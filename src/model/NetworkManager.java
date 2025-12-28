@@ -19,14 +19,14 @@ public class NetworkManager {
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket(port);
-                socket = serverSocket.accept(); // Chờ Client kết nối
+                socket = serverSocket.accept();
                 setupStreams();
 
-                // 1. Gửi cấu hình cho Client
                 sendConfig(new GameConfigPacket(controller.playerColor));
 
-                // 2. Lệnh cho máy Host bắt đầu vào game (Chạy trên luồng UI)
+                // Cập nhật quan trọng: Đóng Dialog chờ và bắt đầu game
                 javax.swing.SwingUtilities.invokeLater(() -> {
+                    controller.getMenuPanel().closeWaitingDialog(); // Tắt thông báo chờ
                     controller.startNewGame();
                 });
 

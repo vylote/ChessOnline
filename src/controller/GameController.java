@@ -223,11 +223,26 @@ public class GameController implements Runnable {
         else handleMouseInput();
     }
 
+    public int getDisplayCol(int col) {
+        return (isMultiplayer && playerColor == BLACK) ? 7 - col : col;
+    }
+
+    public int getDisplayRow(int row) {
+        return (isMultiplayer && playerColor == BLACK) ? 7 - row : row;
+    }
+
     private void handleMouseInput() {
         if (isMultiplayer && currentColor != playerColor) return;
         updateCursorState();
         if (!mouse.released) return;
         int col = mouse.x / Board.SQUARE_SIZE, row = mouse.y / Board.SQUARE_SIZE;
+
+        // Đảo ngược tọa độ click nếu người chơi đang xem bàn cờ bị lật
+        if (isMultiplayer && playerColor == BLACK) {
+            col = 7 - col;
+            row = 7 - row;
+        }
+
         if (activeP == null) {
             for (Piece piece : simPieces)
                 if (piece.color == currentColor && piece.col == col && piece.row == row) {
@@ -285,6 +300,7 @@ public class GameController implements Runnable {
     }
 
     // Getters
+    public MenuPanel getMenuPanel() { return menuPanel; }
     public int getCurrentColor() { return currentColor; }
     public boolean isGameOver() { return gameOver; }
     public boolean isDraw() { return isDraw; }

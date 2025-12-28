@@ -15,6 +15,7 @@ public class MenuPanel extends JPanel {
     private final GameController controller;
     private BufferedImage backgroundImage;
     private BufferedImage[] slotThumbnails = new BufferedImage[4];
+    private JDialog waitingDialog;
 
     private boolean isSettingsMode = false;
     private boolean isLoadMode = false;
@@ -114,13 +115,27 @@ public class MenuPanel extends JPanel {
                 JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
 
         if (choice == 0) { // Host
-            controller.setupMultiplayer(true, 0, null); // Mặc định Host màu Trắng (0)
-            JOptionPane.showMessageDialog(this, "Đang chờ người chơi kết nối tại Port 5555...");
+            // Tạo Dialog chờ không gây khóa (Non-modal)
+            waitingDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Waiting...", false);
+            waitingDialog.setLayout(new FlowLayout());
+            waitingDialog.add(new JLabel("Đang chờ người chơi kết nối tại Port 5555..."));
+            waitingDialog.setSize(300, 100);
+            waitingDialog.setLocationRelativeTo(this);
+
+            controller.setupMultiplayer(true, 0, null);
+            waitingDialog.setVisible(true);
         } else if (choice == 1) { // Join
             String ip = JOptionPane.showInputDialog(this, "Nhập địa chỉ IP của Host:", "127.0.0.1");
             if (ip != null && !ip.isEmpty()) {
                 controller.setupMultiplayer(false, 1, ip);
             }
+        }
+    }
+
+    public void closeWaitingDialog() {
+        if (waitingDialog != null) {
+            waitingDialog.dispose();
+            waitingDialog = null;
         }
     }
 

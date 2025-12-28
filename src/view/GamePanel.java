@@ -38,6 +38,7 @@ public class GamePanel extends JPanel {
             @Override
             public void mouseReleased(MouseEvent e) {
                 updateMouseAndHover(e);
+                // Logic xử lý tọa độ click đã được Controller đảo ngược, ở đây chỉ cần gửi tọa độ thô
                 if (!isHoveringPause) { controller.handleMouseRelease(mouse.x, mouse.y); }
                 mouse.pressed = false;
             }
@@ -81,40 +82,55 @@ public class GamePanel extends JPanel {
 
         drawPhysicalPauseButton(g2);
 
-        // Chuyển sang hệ tọa độ Logic (600x600 cho bàn cờ)
+        // Chuyển sang hệ tọa độ Logic
         g2.scale(scale, scale);
+
+        // Vẽ bàn cờ
+        // Nếu ảnh bàn cờ của bạn có ký hiệu A-H, 1-8, nó sẽ bị ngược (đúng tính chất đảo bàn cờ)
         controller.getBoard().draw(g2);
 
         drawPiecesAndEffects(g2);
-        drawPlayerInfo(g2); // Vẽ Avatar và thông tin lượt
+        drawPlayerInfo(g2);
 
         if (controller.isGameOver()) drawGameOver(g2);
     }
 
     private void drawPiecesAndEffects(Graphics2D g2) {
-        // Highlight King khi bị chiếu
+        int size = Board.SQUARE_SIZE;
+
+        // Highlight King khi bị chiếu (Sử dụng tọa độ hiển thị)
         if (controller.getCheckingP() != null) {
             Piece king = controller.getKing(false);
             if (king != null) {
                 g2.setColor(new Color(255, 0, 0, 150));
-                g2.fillRect(king.col * Board.SQUARE_SIZE, king.row * Board.SQUARE_SIZE, Board.SQUARE_SIZE, Board.SQUARE_SIZE);
+                g2.fillRect(controller.getDisplayCol(king.col) * size,
+                        controller.getDisplayRow(king.row) * size, size, size);
             }
         }
 
         // Highlight nước đi hợp lệ
         Piece activeP = controller.getActiveP();
         if (activeP != null && controller.isClickedToMove() && !controller.isPromotion()) {
+            // Highlight ô hiện tại của quân đang chọn
             g2.setColor(new Color(255, 165, 0, 120));
-            g2.fillRect(activeP.preCol * Board.SQUARE_SIZE, activeP.preRow * Board.SQUARE_SIZE, Board.SQUARE_SIZE, Board.SQUARE_SIZE);
+            g2.fillRect(controller.getDisplayCol(activeP.col) * size,
+                    controller.getDisplayRow(activeP.row) * size, size, size);
 
+            // Vẽ các chấm gợi ý nước đi
             for (int[] move : controller.getValidMoves()) {
                 g2.setColor(move[2] == 0 ? new Color(0, 255, 0, 100) : new Color(255, 0, 0, 100));
-                g2.fillRect(move[0] * Board.SQUARE_SIZE, move[1] * Board.SQUARE_SIZE, Board.SQUARE_SIZE, Board.SQUARE_SIZE);
+                g2.fillRect(controller.getDisplayCol(move[0]) * size,
+                        controller.getDisplayRow(move[1]) * size, size, size);
             }
         }
 
-        for (Piece p : controller.getSimPieces()) p.draw(g2);
-        if (activeP != null && !controller.isPromotion()) activeP.draw(g2);
+        // Vẽ các quân cờ tại tọa độ hiển thị
+        for (Piece p : controller.getSimPieces()) {
+            // Thay vì dùng p.draw(g2), ta vẽ thủ công tại tọa độ đảo ngược
+            g2.drawImage(p.image, controller.getDisplayCol(p.col) * size,
+                    controller.getDisplayRow(p.row) * size, size, size, null);
+        }
+
         if (controller.isPromotion()) drawPromotionUI(g2);
     }
 
@@ -127,6 +143,7 @@ public class GamePanel extends JPanel {
         g2.fillRoundRect(boardRight, 20, 160, 80, 15, 15);
         g2.setColor(Color.WHITE);
         g2.drawString("Opponent", boardRight + 50, 45);
+        // Màu quân đối thủ là màu ngược với màu của bạn
         g2.setColor(controller.playerColor == GameController.WHITE ? Color.BLACK : Color.WHITE);
         g2.fillOval(boardRight + 15, 30, 25, 25);
 
@@ -147,13 +164,27 @@ public class GamePanel extends JPanel {
         // Highlight lượt của bạn
         if (controller.getCurrentColor() == controller.playerColor) {
             g2.setColor(Color.GREEN);
+            g2.setStroke(new BasicStroke(3));
             g2.drawRoundRect(boardRight, 500, 160, 80, 15, 15);
         }
     }
 
-    // (Các hàm drawGameOver, drawPhysicalPauseButton, drawPromotionUI giữ nguyên từ code cũ của bạn)
+    private void drawPromotionUI(Graphics2D g2) {
+        g2.setColor(new Color(0, 0, 0, 150));
+        g2.fillRect(0, 0, BOARD_W, LOGIC_H);
+        ArrayList<Piece> promoPieces = controller.getPromoPieces();
+        int size = Board.SQUARE_SIZE;
+        for (Piece p : promoPieces) {
+            int x = controller.getDisplayCol(p.col) * size;
+            int y = controller.getDisplayRow(p.row) * size;
+            g2.setColor(new Color(139, 139, 139));
+            g2.fillRect(x, y, size, size);
+            g2.drawImage(p.image, x, y, size, size, null);
+        }
+    }
+
+    // --- Các hàm phụ trợ giữ nguyên ---
     private void drawPhysicalPauseButton(Graphics2D g2) { if (GameState.currentState != State.PLAYING || controller.isGameOver()) return; int x = getWidth() - 55, y = 10, size = 45; g2.setColor(isHoveringPause ? new Color(90, 90, 90) : new Color(50, 50, 50)); g2.fillRoundRect(x, y, size, size, 10, 10); g2.setColor(Color.WHITE); g2.setStroke(new BasicStroke(2)); g2.drawRoundRect(x, y, size, size, 10, 10); g2.setFont(new Font("Arial", Font.BOLD, 20)); g2.drawString("||", x + 16, y + 30); }
-    private void drawPromotionUI(Graphics2D g2) { g2.setColor(new Color(0, 0, 0, 150)); g2.fillRect(0, 0, BOARD_W, LOGIC_H); ArrayList<Piece> promoPieces = controller.getPromoPieces(); int size = Board.SQUARE_SIZE; for (Piece p : promoPieces) { int x = p.col * size; int y = p.row * size; g2.setColor(new Color(139, 139, 139)); g2.fillRect(x, y, size, size); g2.setStroke(new BasicStroke(3)); g2.setColor(new Color(220, 220, 220)); g2.drawLine(x, y, x + size, y); g2.drawLine(x, y, x, y + size); g2.setColor(new Color(60, 60, 60)); g2.drawLine(x + size, y, x + size, y + size); g2.drawLine(x, y + size, x + size, y + size); p.draw(g2); } }
     private void drawGameOver(Graphics2D g2) { g2.setColor(new Color(0, 0, 0, 200)); double s = (double) getHeight() / LOGIC_H; int totalLW = (int) (getWidth() / s); g2.fillRect(0, 0, totalLW, LOGIC_H); g2.setFont(new Font("Arial", Font.BOLD, 60)); if (controller.isDraw()) { g2.setColor(Color.YELLOW); String msg = "DRAW GAME"; g2.drawString(msg, totalLW / 2 - g2.getFontMetrics().stringWidth(msg)/2, 300); } else { g2.setColor(Color.GREEN); String winner = (controller.getCurrentColor() == 0) ? "BLACK WINS!" : "WHITE WINS!"; g2.drawString(winner, totalLW / 2 - g2.getFontMetrics().stringWidth(winner)/2, 300); } g2.setFont(new Font("Arial", Font.PLAIN, 20)); g2.setColor(Color.WHITE); String subMsg = "Press ESC to return to Menu"; g2.drawString(subMsg, totalLW / 2 - g2.getFontMetrics().stringWidth(subMsg)/2, 360); }
     public BufferedImage getGameSnapshot() { BufferedImage image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB); Graphics2D g2d = image.createGraphics(); this.printAll(g2d); g2d.dispose(); return image; }
 }
