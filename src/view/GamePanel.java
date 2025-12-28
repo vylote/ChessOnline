@@ -122,8 +122,18 @@ public class GamePanel extends JPanel {
         }
 
         // 3. VẼ CÁC QUÂN CỜ
-        for (Piece p : controller.getSimPieces()) p.draw(g2);
-        if (activeP != null && !controller.isPromotion()) activeP.draw(g2);
+        // Đã loại bỏ synchronized để sửa lỗi LAG
+        // CopyOnWriteArrayList trong Controller cho phép duyệt an toàn mà không cần khóa luồng
+        for (Piece p : controller.getSimPieces()) {
+            if (p != null) {
+                p.draw(g2);
+            }
+        }
+
+        // Vẽ quân đang cầm lên trên cùng
+        if (activeP != null && !controller.isPromotion()) {
+            activeP.draw(g2);
+        }
 
         // 4. VẼ UI THĂNG CẤP Ở SIDEBAR
         if (controller.isPromotion()) {
@@ -132,7 +142,6 @@ public class GamePanel extends JPanel {
     }
 
     private void drawPromotionUI(Graphics2D g2) {
-        // Làm tối bàn cờ
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, BOARD_W, LOGIC_H);
 
@@ -140,24 +149,21 @@ public class GamePanel extends JPanel {
         int size = Board.SQUARE_SIZE;
 
         for (Piece p : promoPieces) {
-            // Vẽ ô Slot Minecraft sát lề bàn cờ
             int x = p.col * size;
             int y = p.row * size;
 
-            // Vẽ nền xám slot
             g2.setColor(new Color(139, 139, 139));
             g2.fillRect(x, y, size, size);
 
-            // Vẽ viền 3D nổi (Minecraft Hotbar Style)
             g2.setStroke(new BasicStroke(3));
-            g2.setColor(new Color(220, 220, 220)); // Cạnh sáng
+            g2.setColor(new Color(220, 220, 220));
             g2.drawLine(x, y, x + size, y);
             g2.drawLine(x, y, x, y + size);
-            g2.setColor(new Color(60, 60, 60));   // Cạnh tối
+            g2.setColor(new Color(60, 60, 60));
             g2.drawLine(x + size, y, x + size, y + size);
             g2.drawLine(x, y + size, x + size, y + size);
 
-            p.draw(g2); // Vẽ quân cờ lên trên
+            p.draw(g2);
         }
     }
 
@@ -179,7 +185,6 @@ public class GamePanel extends JPanel {
     }
 
     private Piece getPieceAt(int mx, int my) {
-        // Kiểm tra click vào các slot thăng cấp
         if (controller.isPromotion()) {
             int slotSize = Board.SQUARE_SIZE;
             for (Piece p : controller.getPromoPieces()) {
@@ -188,11 +193,13 @@ public class GamePanel extends JPanel {
                 }
             }
         }
-        // Kiểm tra click vào bàn cờ
         int c = mx / Board.SQUARE_SIZE;
         int r = my / Board.SQUARE_SIZE;
         if (c >= 0 && c < 8 && r >= 0 && r < 8) {
-            for (Piece p : controller.getSimPieces()) if (p.col == c && p.row == r) return p;
+            // Loại bỏ synchronized tại đây để tăng hiệu năng
+            for (Piece p : controller.getSimPieces()) {
+                if (p.col == c && p.row == r) return p;
+            }
         }
         return null;
     }
@@ -202,7 +209,6 @@ public class GamePanel extends JPanel {
         if (!h) {
             Piece p = getPieceAt(mouse.x, mouse.y);
             if (p != null) {
-                // Nếu là quân thăng cấp HOẶC quân mình trên bàn cờ
                 if (controller.getPromoPieces().contains(p) || p.color == controller.getCurrentColor()) {
                     h = true;
                 }
