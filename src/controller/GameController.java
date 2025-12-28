@@ -373,25 +373,48 @@ public class GameController implements Runnable {
         } catch (Exception e) { return "Empty"; }
     }
 
-    // Hàm xác định thư mục gốc để lưu (Saves hoặc AppData)
     private String getBaseSavePath() {
         String workingDir = System.getProperty("user.dir");
+        File currentDir = new File(workingDir);
 
-        // Nếu chạy từ Program Files (Bản Installer)
-        if (workingDir.toLowerCase().contains("program files")) {
-            return System.getenv("LOCALAPPDATA") + File.separator + "VyChessGame";
+        // Kiểm tra xem thư mục hiện tại có thực sự cho phép ghi file hay không
+        // (Cách này chính xác hơn việc chỉ kiểm tra chữ "program files")
+        boolean canWrite = false;
+        try {
+            File testFile = new File(currentDir, ".test_write");
+            if (testFile.createNewFile()) {
+                canWrite = true;
+                testFile.delete();
+            }
+        } catch (IOException e) {
+            canWrite = false;
         }
 
-        // Nếu là bản Dev (như trong ảnh của bạn) hoặc bản Portable
-        // Chúng ta sẽ lưu vào thư mục con tên là "saves" cho gọn
+        if (!canWrite || workingDir.toLowerCase().contains("program files")) {
+            // Nếu bị khóa (Program Files), ta ép buộc chuyển sang AppData
+            String localAppData = System.getenv("LOCALAPPDATA");
+            if (localAppData != null) {
+                return localAppData + File.separator + "VyChessGame";
+            } else {
+                // Dự phòng nếu không tìm thấy LOCALAPPDATA (dùng Home user)
+                return System.getProperty("user.home") + File.separator + ".vychessgame";
+            }
+        }
+
+        // Nếu có quyền ghi (Bản Dev/Portable), lưu vào thư mục 'saves' ngay tại đó
         return workingDir + File.separator + "saves";
     }
 
-    // Hàm lấy file cụ thể và tự động tạo thư mục nếu chưa có
+    // 2. Lấy file và tự động tạo thư mục nếu chưa có
     private File getSaveFileHandle(String fileName) {
-        File directory = new File(getBaseSavePath());
+        String path = getBaseSavePath();
+        File directory = new File(path);
+
         if (!directory.exists()) {
-            directory.mkdirs(); // Tạo folder 'saves' hoặc folder trong AppData
+            boolean created = directory.mkdirs();
+            if (created) {
+                System.out.println("Đã tạo thư mục lưu trữ mới tại: " + path);
+            }
         }
         return new File(directory, fileName);
     }
