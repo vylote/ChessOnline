@@ -115,6 +115,7 @@ public class MenuPanel extends JPanel {
                 JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
 
         if (choice == 0) { // Host
+            String myIP = controller.getLocalIP();
             // Tạo Dialog chờ không gây khóa (Non-modal)
             waitingDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Waiting...", false);
             waitingDialog.setLayout(new FlowLayout());

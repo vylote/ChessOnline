@@ -3,6 +3,7 @@ package controller;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.imageio.ImageIO;
@@ -221,6 +222,16 @@ public class GameController implements Runnable {
         }
         if (promotion) promoting();
         else handleMouseInput();
+    }
+
+    // --- TÍNH NĂNG MỚI: TỰ LẤY IP ---
+    public String getLocalIP() {
+        try {
+            // Lấy IP nội bộ của máy
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (Exception e) {
+            return "Không xác định";
+        }
     }
 
     public int getDisplayCol(int col) {
