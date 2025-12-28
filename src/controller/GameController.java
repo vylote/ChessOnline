@@ -314,15 +314,24 @@ public class GameController implements Runnable {
     public ArrayList<int[]> getValidMoves() { return validMoves; }
 
     public void saveGame(int s, BufferedImage img) {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("savegame_" + s + ".dat"))) {
+        File saveFile = getSaveFileHandle("savegame_" + s + ".dat");
+        File thumbFile = getSaveFileHandle("thumbnail_" + s + ".png");
+
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(saveFile))) {
             oos.writeObject(new SaveData(new ArrayList<>(this.pieces), this.currentColor, this.timeLeft));
-            if (img != null) ImageIO.write(img, "png", new File("thumbnail_" + s + ".png"));
-        } catch (Exception e) { e.printStackTrace(); }
+            if (img != null) {
+                ImageIO.write(img, "png", thumbFile);
+            }
+            System.out.println("Đã lưu tại: " + saveFile.getAbsolutePath());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void loadGame(int s) {
-        File f = new File("savegame_" + s + ".dat");
+        File f = getSaveFileHandle("savegame_" + s + ".dat");
         if (!f.exists()) return;
+
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f))) {
             SaveData d = (SaveData) ois.readObject();
             pieces.clear();
@@ -334,6 +343,8 @@ public class GameController implements Runnable {
                 p.updatePosition();
             }
             copyPieces(pieces, simPieces);
+
+            // Khởi tạo lại panel game
             gamePanel = new GamePanel(this);
             showPanel(gamePanel);
             audioManager.playBGM(GAME_BGM);
@@ -347,19 +358,42 @@ public class GameController implements Runnable {
     }
 
     public BufferedImage getSlotThumbnail(int s) {
+        File f = getSaveFileHandle("thumbnail_" + s + ".png");
         try {
-            File f = new File("thumbnail_" + s + ".png");
             return f.exists() ? ImageIO.read(f) : null;
         } catch (Exception e) { return null; }
     }
 
     public String getSlotMetadata(int s) {
-        File f = new File("savegame_" + s + ".dat");
+        File f = getSaveFileHandle("savegame_" + s + ".dat");
         if (!f.exists()) return "Empty";
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f))) {
             SaveData d = (SaveData) ois.readObject();
             return d.saveTime;
         } catch (Exception e) { return "Empty"; }
+    }
+
+    // Hàm xác định thư mục gốc để lưu (Saves hoặc AppData)
+    private String getBaseSavePath() {
+        String workingDir = System.getProperty("user.dir");
+
+        // Nếu chạy từ Program Files (Bản Installer)
+        if (workingDir.toLowerCase().contains("program files")) {
+            return System.getenv("LOCALAPPDATA") + File.separator + "VyChessGame";
+        }
+
+        // Nếu là bản Dev (như trong ảnh của bạn) hoặc bản Portable
+        // Chúng ta sẽ lưu vào thư mục con tên là "saves" cho gọn
+        return workingDir + File.separator + "saves";
+    }
+
+    // Hàm lấy file cụ thể và tự động tạo thư mục nếu chưa có
+    private File getSaveFileHandle(String fileName) {
+        File directory = new File(getBaseSavePath());
+        if (!directory.exists()) {
+            directory.mkdirs(); // Tạo folder 'saves' hoặc folder trong AppData
+        }
+        return new File(directory, fileName);
     }
 
     public boolean isInsufficientMaterial() {
