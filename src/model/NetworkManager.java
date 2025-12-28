@@ -19,9 +19,17 @@ public class NetworkManager {
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket(port);
-                socket = serverSocket.accept();
+                socket = serverSocket.accept(); // Chờ Client kết nối
                 setupStreams();
+
+                // 1. Gửi cấu hình cho Client
                 sendConfig(new GameConfigPacket(controller.playerColor));
+
+                // 2. Lệnh cho máy Host bắt đầu vào game (Chạy trên luồng UI)
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    controller.startNewGame();
+                });
+
                 listenForData();
             } catch (IOException e) { e.printStackTrace(); }
         }).start();

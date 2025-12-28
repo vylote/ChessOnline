@@ -79,7 +79,10 @@ public class GameController implements Runnable {
     public void onConfigReceived(GameConfigPacket packet) {
         if (!isServer) {
             this.playerColor = (packet.hostColor == WHITE) ? BLACK : WHITE;
-            startNewGame();
+            // Chạy trên luồng UI để tránh lỗi giao diện
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                startNewGame();
+            });
         }
     }
 
