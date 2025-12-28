@@ -30,7 +30,13 @@ public class MenuPanel extends JPanel {
     public MenuPanel(GameController gc, JFrame frame) {
         this.controller = gc;
         setLayout(null);
-        try { backgroundImage = ImageIO.read(new File("res/bg/menu_bg.png")); } catch (Exception e) {}
+        try {
+            // Sử dụng getResourceAsStream để đọc từ trong file JAR
+            // Lưu ý: Đường dẫn bắt đầu bằng "/" và bỏ "res/" nếu bạn đã Mark thư mục res là Resources Root
+            backgroundImage = ImageIO.read(getClass().getResourceAsStream("/bg/menu_bg.png"));
+        } catch (Exception e) {
+            System.err.println("Không thể nạp ảnh nền Menu: " + e.getMessage());
+        }
 
         initSliders();
 

@@ -15,9 +15,9 @@ public class Board {
 
     public Board() {
         try {
-            boardImage = ImageIO.read(new File("res/board/board.png"));
+            boardImage = ImageIO.read(getClass().getResourceAsStream("/board/board.png"));
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Không thể nạp ảnh bàn cờ: " + e.getMessage());
         }
     }
 

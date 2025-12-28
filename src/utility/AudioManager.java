@@ -1,14 +1,14 @@
 package utility;
 
 import javax.sound.sampled.*;
-import java.io.File;
+import java.net.URL;
 
 public class AudioManager {
     private Clip bgmClip;
     private String currentPath = "";
 
-    private float bgmVolume = 0.03f; // Âm lượng nhạc nền
-    private float sfxVolume = 1f; // Âm lượng hiệu ứng (SFX) tách riêng
+    private float bgmVolume = 0.03f;
+    private float sfxVolume = 1f;
 
     // --- QUẢN LÝ BGM ---
     public void setBGMVolumeFromSlider(int value) {
@@ -33,14 +33,19 @@ public class AudioManager {
 
     public void playSFX(String filePath) {
         try {
-            File audioFile = new File(filePath);
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            // SỬA ĐỔI: Sử dụng getResource để đọc file từ bên trong JAR
+            URL soundURL = getClass().getResource(filePath);
+            if (soundURL == null) {
+                System.err.println("Không tìm thấy SFX: " + filePath);
+                return;
+            }
+
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(soundURL);
             Clip sfxClip = AudioSystem.getClip();
             sfxClip.open(audioStream);
 
             if (sfxClip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
                 FloatControl gainControl = (FloatControl) sfxClip.getControl(FloatControl.Type.MASTER_GAIN);
-                // SỬ DỤNG sfxVolume RIÊNG BIỆT
                 float dB = (float) (Math.log(sfxVolume <= 0 ? 0.0001 : sfxVolume) / Math.log(10.0) * 20.0);
                 gainControl.setValue(dB);
             }
@@ -49,13 +54,18 @@ public class AudioManager {
         } catch (Exception e) { System.err.println("Lỗi SFX: " + filePath); }
     }
 
-    // (Giữ nguyên các hàm playBGM và stopBGM cũ)
     public void playBGM(String filePath) {
         if (filePath.equals(currentPath) && bgmClip != null && bgmClip.isRunning()) return;
         stopBGM();
         try {
-            File audioFile = new File(filePath);
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+            // SỬA ĐỔI: Sử dụng getResource cho nhạc nền
+            URL soundURL = getClass().getResource(filePath);
+            if (soundURL == null) {
+                System.err.println("Không tìm thấy BGM: " + filePath);
+                return;
+            }
+
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(soundURL);
             bgmClip = AudioSystem.getClip();
             bgmClip.open(audioStream);
             currentPath = filePath;
