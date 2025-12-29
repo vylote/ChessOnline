@@ -135,9 +135,18 @@ public class GameController implements Runnable {
     }
 
     private void handleTimeOut() {
-        if (promotion && !promoPieces.isEmpty()) replacePawnAndFinish(promoPieces.get(0));
-        else if (isKingInCheck()) triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
-        else finalizeTurn();
+        if (promotion) {
+            // CHỖ CẦN SỬA: Nếu đang thăng cấp mà hết giờ, tự động lấy quân đầu tiên trong danh sách
+            if (!promoPieces.isEmpty()) {
+                replacePawnAndFinish(promoPieces.get(0));
+            } else {
+                finalizeTurn();
+            }
+        } else if (isKingInCheck()) {
+            triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
+        } else {
+            finalizeTurn();
+        }
     }
 
     // =========================================================
@@ -315,23 +324,25 @@ public class GameController implements Runnable {
 
     private void replacePawnAndFinishNetwork(int type) {
         Piece newP;
+        // Tọa độ là ô quân tốt vừa đi đến (hàng 0 hoặc hàng 7)
+        int col = activeP.col;
+        int row = activeP.row;
+        int color = activeP.color;
+
         switch (type) {
-            case 1:
-                newP = new Rook(activeP.color, activeP.col, activeP.row);
-                break;
-            case 2:
-                newP = new Knight(activeP.color, activeP.col, activeP.row);
-                break;
-            case 3:
-                newP = new Bishop(activeP.color, activeP.col, activeP.row);
-                break;
-            default:
-                newP = new Queen(activeP.color, activeP.col, activeP.row);
-                break;
+            case 1: newP = new Rook(color, row, col); break;
+            case 2: newP = new Knight(color, row, col); break;
+            case 3: newP = new Bishop(color, row, col); break;
+            default: newP = new Queen(color, row, col); break;
         }
+
         newP.image = reloadPieceImage(newP);
+        newP.updatePosition();
+
         simPieces.add(newP);
         simPieces.remove(activeP);
+        // Đồng bộ lại danh sách chính
+        copyPieces(simPieces, pieces);
     }
 
     public String getLocalIP() {
@@ -533,18 +544,23 @@ public class GameController implements Runnable {
                     validMoves.add(new int[]{c, r, (p.gettingHitP(c, r) != null ? 1 : 0)});
     }
 
-    // Sửa logic phát âm thanh: nhận diện nhập thành
     private void playMoveSound(boolean cap, boolean castled) {
         if (castled) {
-            audioManager.playSFX("/audio/sfx/castle.wav"); // Bạn có thể đổi tên file theo resource của bạn
+            audioManager.playSFX("/audio/sfx/castle.wav");
         } else if (cap) {
             audioManager.playSFX("/audio/sfx/capture.wav");
         } else {
             audioManager.playSFX("/audio/sfx/move.wav");
         }
-        new Timer(200, e -> {
-            if (isKingInCheck() && !gameOver) audioManager.playSFX("/audio/sfx/check.wav");
-        }).start();
+
+        // FIX: Sử dụng Timer với setRepeats(false) để không lặp âm check
+        Timer checkTimer = new Timer(200, e -> {
+            if (isKingInCheck() && !gameOver) {
+                audioManager.playSFX("/audio/sfx/check.wav");
+            }
+        });
+        checkTimer.setRepeats(false);
+        checkTimer.start();
     }
 
     private void updateCursorState() {
@@ -571,27 +587,53 @@ public class GameController implements Runnable {
             }
     }
 
-    private void setPromoPieces() {
+    private boolean isPieceLost(Type type) {
+        int count = 0;
+        for (Piece p : simPieces) {
+            if (p.color == currentColor && p.type == type) count++;
+        }
+        // Queen mặc định có 1, các quân khác mặc định có 2
+        if (type == Type.QUEEN) return count < 1;
+        return count < 2;
+    }
+
+    public void setPromoPieces() {
         promoPieces.clear();
-        promoPieces.add(new Queen(currentColor, activeP.col, activeP.row));
-        promoPieces.add(new Rook(currentColor, activeP.col, activeP.row));
-        promoPieces.add(new Knight(currentColor, activeP.col, activeP.row));
-        promoPieces.add(new Bishop(currentColor, activeP.col, activeP.row));
+        // Chỉ thêm vào danh sách nếu quân đó đã bị ăn mất (Cơ sở thăng cấp)
+        if (isPieceLost(Type.QUEEN)) promoPieces.add(new Queen(currentColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.ROOK)) promoPieces.add(new Rook(currentColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.BISHOP)) promoPieces.add(new Bishop(currentColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.KNIGHT)) promoPieces.add(new Knight(currentColor, activeP.row, activeP.col));
+
         for (Piece p : promoPieces) p.image = reloadPieceImage(p);
     }
 
-    private void replacePawnAndFinish(Piece p) {
-        int type = 0;
-        if (p instanceof Rook) type = 1;
-        else if (p instanceof Knight) type = 2;
-        else if (p instanceof Bishop) type = 3;
-        int oC = activeP.col, oR = activeP.row;
+    public void replacePawnAndFinish(Piece p) {
+        // CHỖ CẦN SỬA: Gán chính xác tọa độ của quân tốt cho quân mới
+        int targetCol = activeP.col;
+        int targetRow = activeP.row;
+        int oldCol = activeP.preCol;
+        int oldRow = activeP.preRow;
+
+        p.col = targetCol;
+        p.row = targetRow;
+        p.updatePosition(); // Cập nhật tọa độ x, y thực tế
         p.image = reloadPieceImage(p);
-        p.updatePosition();
+
         simPieces.add(p);
         simPieces.remove(activeP);
         copyPieces(simPieces, pieces);
-        if (isMultiplayer) netManager.sendMove(new MovePacket(oC, oR, p.col, p.row, type));
+
+        // Xác định loại quân để đồng bộ qua mạng
+        int type = 0; // Queen
+        if (p instanceof Rook) type = 1;
+        else if (p instanceof Knight) type = 2;
+        else if (p instanceof Bishop) type = 3;
+
+        if (isMultiplayer) {
+            netManager.sendMove(new MovePacket(oldCol, oldRow, targetCol, targetRow, type));
+        }
+
         promotion = false;
         playMoveSound(false, false);
         checkGameEndConditions();

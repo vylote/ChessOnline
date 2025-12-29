@@ -280,16 +280,43 @@ public class GamePanel extends JPanel {
     }
 
     private void drawPromotionUI(Graphics2D g2) {
+        // Vẽ lớp phủ tối toàn bàn cờ
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, BOARD_W, LOGIC_H);
+
         ArrayList<Piece> promoPieces = controller.getPromoPieces();
+        if (promoPieces.isEmpty()) return;
+
         int size = Board.SQUARE_SIZE;
-        for (Piece p : promoPieces) {
-            int x = controller.getDisplayCol(p.col) * size;
-            int y = controller.getDisplayRow(p.row) * size;
-            g2.setColor(new Color(139, 139, 139));
-            g2.fillRect(x, y, size, size);
-            g2.drawImage(p.image, x, y, size, size, null);
+        // Lấy tọa độ của quân tốt đang thăng cấp để làm tâm điểm vẽ dải slot
+        Piece activeP = controller.getActiveP();
+        int centerX = controller.getDisplayCol(activeP.col) * size;
+        int centerY = controller.getDisplayRow(activeP.row) * size;
+
+        // Vẽ dải 4 ô slot (nếu đủ điều kiện captured) xung quanh vị trí thăng cấp
+        for (int i = 0; i < promoPieces.size(); i++) {
+            // Tính toán vị trí: Vẽ dải dọc theo cột của quân tốt
+            int x = centerX;
+            int y = (activeP.color == GameController.WHITE) ? centerY + (i * size) : centerY - (i * size);
+
+            // Đảm bảo không vẽ tràn khỏi bàn cờ
+            if (y < 0) y = 0;
+            if (y > LOGIC_H - size) y = LOGIC_H - size;
+
+            // Cập nhật tọa độ logic cho quân cờ thăng cấp để Controller nhận diện click đúng
+            // Ta cần gán lại col/row tạm thời để hàm promoting() trong controller quét trúng
+            promoPieces.get(i).col = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (x/size) : (x/size);
+            promoPieces.get(i).row = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (y/size) : (y/size);
+
+            // Vẽ nền ô slot
+            g2.setColor(new Color(200, 200, 200, 200));
+            g2.fillRoundRect(x + 5, y + 5, size - 10, size - 10, 10, 10);
+            g2.setColor(Color.WHITE);
+            g2.setStroke(new BasicStroke(2));
+            g2.drawRoundRect(x + 5, y + 5, size - 10, size - 10, 10, 10);
+
+            // Vẽ hình ảnh quân cờ
+            g2.drawImage(promoPieces.get(i).image, x, y, size, size, null);
         }
     }
 
