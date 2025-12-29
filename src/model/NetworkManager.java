@@ -20,24 +20,28 @@ public class NetworkManager {
     // =========================================================
 
     /** Khởi tạo Server (Host) */
+    /** Khởi tạo Server (Host) */
     public void hostGame(int port) {
         new Thread(() -> {
             try {
                 serverSocket = new ServerSocket();
-                serverSocket.setReuseAddress(true); // Cho phép dùng lại cổng ngay lập tức khi restart
+                serverSocket.setReuseAddress(true);
                 serverSocket.bind(new InetSocketAddress(port));
 
                 System.out.println("Server đang chờ kết nối tại cổng: " + port);
                 socket = serverSocket.accept();
                 setupStreams();
 
-                // Gửi cấu hình màu quân cờ cho Client
+                // 1. Gửi cấu hình cho Client
                 sendConfig(new GameConfigPacket(controller.playerColor));
 
-                // Chạy trên luồng UI để đóng Dialog chờ và vào game
+                // 2. Chạy trên luồng UI để vào game
                 javax.swing.SwingUtilities.invokeLater(() -> {
                     controller.getMenuPanel().closeWaitingDialog();
                     controller.startNewGame();
+
+                    // CHỖ CẦN SỬA: Kích hoạt đồng hồ cho Host sau khi game khởi tạo xong
+                    controller.isTimeRunning = true;
                 });
 
                 listenForData();
@@ -77,6 +81,7 @@ public class NetworkManager {
     public void sendMove(MovePacket packet) {
         try {
             if (out != null) {
+                out.reset(); // Thêm dòng này để xóa cache Object cũ
                 out.writeObject(packet);
                 out.flush();
             }

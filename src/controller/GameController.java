@@ -40,7 +40,7 @@ public class GameController implements Runnable {
 
     // --- 3. FIELDS: TRẠNG THÁI GAME ---
     private boolean promotion, gameOver, isDraw;
-    private boolean isTimeRunning = false;
+    public boolean isTimeRunning = false;
     private boolean isClickedToMove = false;
     private float toastAlpha = 0;
     private int timeLeft = 10;
@@ -73,19 +73,23 @@ public class GameController implements Runnable {
         simPieces.clear();
         setPieces();
         copyPieces(pieces, simPieces);
-        currentColor = WHITE;
-        isDraw = false;
+        currentColor = WHITE; // Luôn bắt đầu bằng quân Trắng
         gameOver = false;
+        isDraw = false;
         isClickedToMove = false;
         promotion = false;
         activeP = null;
         checkingP = null;
         validMoves.clear();
-        resetTime();
+        resetTime(); // Reset về 10s
+
         gamePanel = new GamePanel(this);
         showPanel(gamePanel);
         audioManager.playBGM(GAME_BGM);
-        isTimeRunning = true;
+
+        // CHỈNH SỬA: Mặc định dừng đồng hồ cho Multiplayer để đợi handshake hoàn tất
+        isTimeRunning = !isMultiplayer;
+
         GameState.currentState = State.PLAYING;
         if (gameThread == null || !gameThread.isAlive()) {
             gameThread = new Thread(this);
@@ -235,17 +239,27 @@ public class GameController implements Runnable {
 
             if (valid) {
                 Piece captured = activeP.gettingHitP(col, row);
+                // Lưu tọa độ TRƯỚC KHI di chuyển (oldCol và oldRow đã có ở trên rồi)
                 simulateClickToMove(col, row);
 
-                // Kiểm tra xem nước này có phải nhập thành không để phát tiếng
                 boolean castled = (castlingP != null);
 
                 if (canPromote()) {
                     setPromoPieces();
-                    promotion = true;
+                    if (promoPieces.isEmpty()) {
+                        activeP.finishMove();
+                        copyPieces(simPieces, pieces);
+                        // SỬA TẠI ĐÂY: Dùng oldCol, oldRow thay vì oC, oR
+                        if (isMultiplayer) netManager.sendMove(new MovePacket(oldCol, oldRow, col, row, -1));
+                        playMoveSound(captured != null, false);
+                        finalizeTurn();
+                    } else {
+                        promotion = true;
+                    }
                 } else {
                     activeP.finishMove();
                     copyPieces(simPieces, pieces);
+                    // Đoạn này bạn đã dùng oldCol, oldRow là đúng
                     if (isMultiplayer) netManager.sendMove(new MovePacket(oldCol, oldRow, col, row, -1));
                     playMoveSound(captured != null, castled);
                     checkGameEndConditions();
@@ -260,11 +274,22 @@ public class GameController implements Runnable {
         activeP = null;
         validMoves.clear();
         castlingP = null;
+
+        // RESET TRẠNG THÁI THĂNG CẤP
+        promotion = false;
+        promoPieces.clear();
+
+        // Đổi lượt
         currentColor = (currentColor == WHITE) ? BLACK : WHITE;
+
+        // Reset thuộc tính hai bước của quân Tốt
         for (Piece p : pieces) if (p.color == currentColor) p.twoStepped = false;
+
         isKingInCheck();
         resetTime();
-        isTimeRunning = true;
+
+        // QUAN TRỌNG: Đảm bảo đồng hồ luôn chạy tiếp sau khi đổi lượt
+        this.isTimeRunning = true;
     }
 
     public void simulateClickToMove(int tc, int tr) {
@@ -284,47 +309,78 @@ public class GameController implements Runnable {
     // =========================================================
     // NHÓM 4: MULTIPLAYER LOGIC
     // =========================================================
+    // CHỖ CẦN SỬA 2: Host phát tín hiệu cấu hình khi bắt đầu
     public void setupMultiplayer(boolean host, int selectedColor, String ip) {
         this.isMultiplayer = true;
         this.isServer = host;
-        this.playerColor = selectedColor;
+        this.playerColor = selectedColor; // Host lấy màu từ Menu đã chọn
+
         this.netManager = new NetworkManager(this);
-        if (host) netManager.hostGame(5555);
-        else netManager.joinGame(ip, 5555);
+        if (host) {
+            netManager.hostGame(5555);
+            // Sau khi mở port, Host sẵn sàng gửi GameConfigPacket khi có Joiner
+            // (Lưu ý: Việc gửi packet này thường nằm trong callback khi socket kết nối thành công)
+        } else {
+            netManager.joinGame(ip, 5555);
+        }
     }
 
     public void receiveNetworkMove(MovePacket packet) {
-        if (packet.oldCol == -1) {
-            handleRematchReceived();
-            return;
-        }
-        if (packet.oldCol == -2) {
-            startNewGame();
-            return;
-        }
+        if (packet.oldCol == -1) { handleRematchReceived(); return; }
+        if (packet.oldCol == -2) { startNewGame(); return; }
 
         for (Piece p : simPieces) {
             if (p.col == packet.oldCol && p.row == packet.oldRow) {
                 activeP = p;
-                Piece captured = activeP.gettingHitP(packet.newCol, packet.newRow);
                 simulateClickToMove(packet.newCol, packet.newRow);
 
-                boolean castled = (castlingP != null);
-
-                if (packet.promotionType != -1) replacePawnAndFinishNetwork(packet.promotionType);
-                else activeP.finishMove();
+                if (packet.promotionType != -1) {
+                    replacePawnAndFinishNetwork(packet.promotionType);
+                } else {
+                    activeP.finishMove();
+                }
 
                 copyPieces(simPieces, pieces);
-                playMoveSound(captured != null, castled);
+                playMoveSound(activeP.hittingP != null, castlingP != null);
+
+                // CHỖ CẦN SỬA: Đảm bảo chỉ gọi hàm này.
+                // Nó sẽ tự động gọi finalizeTurn() để đổi lượt cho bạn.
                 checkGameEndConditions();
                 break;
             }
         }
     }
 
-    private void replacePawnAndFinishNetwork(int type) {
+    // CHỖ CẦN SỬA 1: Đổi thành public và đảm bảo chỉ có 1 hàm này trong file
+    public void replacePawnAndFinish(Piece p) {
+        int targetCol = activeP.col;
+        int targetRow = activeP.row;
+        int oldCol = activeP.preCol;
+        int oldRow = activeP.preRow;
+
+        p.col = targetCol;
+        p.row = targetRow;
+        p.updatePosition();
+        p.image = reloadPieceImage(p);
+
+        simPieces.add(p);
+        simPieces.remove(activeP);
+        copyPieces(simPieces, pieces);
+
+        int type = (p instanceof Rook) ? 1 : (p instanceof Knight) ? 2 : (p instanceof Bishop) ? 3 : 0;
+
+        if (isMultiplayer) {
+            netManager.sendMove(new MovePacket(oldCol, oldRow, targetCol, targetRow, type));
+        }
+
+        promotion = false;
+        // Đồng bộ kết thúc lượt
+        checkGameEndConditions();
+    }
+
+    // CHỖ CẦN SỬA 2: Thêm hàm này vào GameController
+    public void replacePawnAndFinishNetwork(int type) {
         Piece newP;
-        // Tọa độ là ô quân tốt vừa đi đến (hàng 0 hoặc hàng 7)
         int col = activeP.col;
         int row = activeP.row;
         int color = activeP.color;
@@ -341,7 +397,7 @@ public class GameController implements Runnable {
 
         simPieces.add(newP);
         simPieces.remove(activeP);
-        // Đồng bộ lại danh sách chính
+        // Cập nhật lại danh sách chính thức
         copyPieces(simPieces, pieces);
     }
 
@@ -608,36 +664,6 @@ public class GameController implements Runnable {
         for (Piece p : promoPieces) p.image = reloadPieceImage(p);
     }
 
-    public void replacePawnAndFinish(Piece p) {
-        // CHỖ CẦN SỬA: Gán chính xác tọa độ của quân tốt cho quân mới
-        int targetCol = activeP.col;
-        int targetRow = activeP.row;
-        int oldCol = activeP.preCol;
-        int oldRow = activeP.preRow;
-
-        p.col = targetCol;
-        p.row = targetRow;
-        p.updatePosition(); // Cập nhật tọa độ x, y thực tế
-        p.image = reloadPieceImage(p);
-
-        simPieces.add(p);
-        simPieces.remove(activeP);
-        copyPieces(simPieces, pieces);
-
-        // Xác định loại quân để đồng bộ qua mạng
-        int type = 0; // Queen
-        if (p instanceof Rook) type = 1;
-        else if (p instanceof Knight) type = 2;
-        else if (p instanceof Bishop) type = 3;
-
-        if (isMultiplayer) {
-            netManager.sendMove(new MovePacket(oldCol, oldRow, targetCol, targetRow, type));
-        }
-
-        promotion = false;
-        playMoveSound(false, false);
-        checkGameEndConditions();
-    }
 
     private void promoting() {
         if (mouse.pressed) {
@@ -676,6 +702,7 @@ public class GameController implements Runnable {
     }
 
     public int getDisplayCol(int col) {
+        // Nếu tôi là quân ĐEN, tôi phải nhìn bàn cờ đảo ngược lại
         return (isMultiplayer && playerColor == BLACK) ? 7 - col : col;
     }
 
@@ -743,8 +770,15 @@ public class GameController implements Runnable {
 
     public void onConfigReceived(GameConfigPacket p) {
         if (!isServer) {
-            playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
-            SwingUtilities.invokeLater(this::startNewGame);
+            this.isMultiplayer = true;
+            // Host chọn màu gì, Joiner lấy màu ngược lại
+            this.playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
+
+            SwingUtilities.invokeLater(() -> {
+                startNewGame();
+                // Kích hoạt đồng hồ cho Joiner ngay sau khi load game thành công
+                this.isTimeRunning = true;
+            });
         }
     }
 }
