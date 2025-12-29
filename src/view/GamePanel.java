@@ -10,6 +10,7 @@ import controller.Mouse;
 import model.*;
 
 public class GamePanel extends JPanel {
+    // --- CẤU HÌNH HỆ TỌA ĐỘ LOGIC ---
     public static final int LOGIC_H = 600;
     public static final int BOARD_W = 600;
 
@@ -17,12 +18,18 @@ public class GamePanel extends JPanel {
     private final Mouse mouse;
     private boolean isHoveringPause = false;
 
+    // --- CÁC THÀNH PHẦN UI ---
+    private JButton btnRematch;
+    private JButton btnExit;
+
     public GamePanel(GameController controller) {
         this.controller = controller;
         this.mouse = controller.mouse;
-        setLayout(null);
+        setLayout(null); // Sử dụng null để tự do đặt vị trí nút bấm
         setBackground(new Color(15, 15, 15));
         setFocusable(true);
+
+        initGameOverButtons();
         setupKeyBindings();
 
         MouseAdapter ma = new MouseAdapter() {
@@ -31,6 +38,9 @@ public class GamePanel extends JPanel {
             @Override
             public void mousePressed(MouseEvent e) {
                 updateMouseAndHover(e);
+                // Nếu game đã kết thúc, không cho phép click chuột xuống bàn cờ
+                if (controller.isGameOver()) return;
+
                 if (GameState.currentState == State.PLAYING && isHoveringPause) {
                     controller.pauseGame();
                 } else { mouse.pressed = true; }
@@ -38,6 +48,8 @@ public class GamePanel extends JPanel {
             @Override
             public void mouseReleased(MouseEvent e) {
                 updateMouseAndHover(e);
+                if (controller.isGameOver()) return;
+
                 if (!isHoveringPause) { controller.handleMouseRelease(mouse.x, mouse.y); }
                 mouse.pressed = false;
             }
@@ -51,6 +63,43 @@ public class GamePanel extends JPanel {
         };
         addMouseListener(ma);
         addMouseMotionListener(ma);
+    }
+
+    /** Khởi tạo các nút bấm xuất hiện khi ván đấu kết thúc */
+    private void initGameOverButtons() {
+        btnRematch = new JButton("PLAY AGAIN");
+        btnExit = new JButton("EXIT TO MENU");
+
+        styleButton(btnRematch, new Color(46, 204, 113)); // Xanh lá
+        styleButton(btnExit, new Color(231, 76, 60));    // Đỏ
+
+        btnRematch.addActionListener(e -> {
+            hideGameOverButtons();
+            controller.requestRematch();
+        });
+
+        btnExit.addActionListener(e -> {
+            hideGameOverButtons();
+            controller.exitToMenu();
+        });
+
+        add(btnRematch);
+        add(btnExit);
+        hideGameOverButtons();
+    }
+
+    private void styleButton(JButton btn, Color bg) {
+        btn.setFocusPainted(false);
+        btn.setBackground(bg);
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        btn.setBorder(BorderFactory.createLineBorder(Color.WHITE, 2));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
+    private void hideGameOverButtons() {
+        btnRematch.setVisible(false);
+        btnExit.setVisible(false);
     }
 
     private void setupKeyBindings() {
@@ -74,31 +123,91 @@ public class GamePanel extends JPanel {
 
         double scale = (double) getHeight() / LOGIC_H;
 
-        // Vẽ Sidebar Background
+        // 1. Vẽ Sidebar Background (Vùng thông tin bên phải)
         int boardPhysicalWidth = (int)(BOARD_W * scale);
         g2.setColor(new Color(30, 30, 30));
         g2.fillRect(boardPhysicalWidth, 0, getWidth() - boardPhysicalWidth, getHeight());
 
         drawPhysicalPauseButton(g2);
 
-        // Chuyển sang hệ tọa độ Logic
+        // 2. Chuyển sang hệ tọa độ Logic để vẽ bàn cờ và quân cờ
         g2.scale(scale, scale);
 
-        // --- CẬP NHẬT: VẼ BÀN CỜ ĐẢO NGƯỢC ---
-        // Bàn cờ lật khi là Multiplayer và người chơi là quân Đen
         boolean isFlipped = controller.isMultiplayer && controller.playerColor == GameController.BLACK;
         controller.getBoard().draw(g2, isFlipped);
 
         drawPiecesAndEffects(g2);
         drawPlayerInfo(g2);
 
-        if (controller.isGameOver()) drawGameOver(g2);
+        if (controller.getToastAlpha() > 0) drawToast(g2);
+
+        // 3. Vẽ lớp phủ Game Over (Nếu kết thúc)
+        if (controller.isGameOver()) {
+            drawGameOver(g2);
+        } else {
+            hideGameOverButtons();
+        }
+    }
+
+    private void drawGameOver(Graphics2D g2) {
+        // Vẽ lớp phủ tối mờ
+        g2.setColor(new Color(0, 0, 0, 200));
+        double s = (double) getHeight() / LOGIC_H;
+        int totalLW = (int) (getWidth() / s);
+        g2.fillRect(0, 0, totalLW, LOGIC_H);
+
+        // Hiển thị kết quả thắng/thua
+        g2.setFont(new Font("Arial", Font.BOLD, 60));
+        String msg;
+        if (controller.isDraw()) {
+            g2.setColor(Color.YELLOW);
+            msg = "DRAW GAME";
+        } else {
+            g2.setColor(Color.WHITE);
+            // Ở đây currentColor là người vừa kết thúc lượt -> đối thủ thắng
+            msg = (controller.getCurrentColor() == GameController.WHITE) ? "BLACK WINS!" : "WHITE WINS!";
+        }
+        g2.drawString(msg, totalLW / 2 - g2.getFontMetrics().stringWidth(msg)/2, 250);
+
+        // Đặt vị trí các nút bấm (Phải tính theo hệ tọa độ Pixel thực tế)
+        int centerX = getWidth() / 2;
+        int buttonY = (int) (320 * s);
+
+        btnRematch.setBounds(centerX - 160, buttonY, 150, 50);
+        btnExit.setBounds(centerX + 10, buttonY, 150, 50);
+
+        btnRematch.setVisible(true);
+        btnExit.setVisible(true);
+    }
+
+    // =========================================================
+    // NHÓM CÁC HÀM VẼ CHI TIẾT
+    // =========================================================
+
+    private void drawToast(Graphics2D g2) {
+        String msg = "Cannot pause in Multiplayer mode!";
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        FontMetrics fm = g2.getFontMetrics();
+        int msgW = fm.stringWidth(msg);
+        int x = (BOARD_W - msgW) / 2 - 20;
+        int y = 280;
+        int w = msgW + 40;
+        int h = 50;
+
+        float alpha = controller.getToastAlpha();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.8f));
+        g2.setColor(Color.BLACK);
+        g2.fillRoundRect(x, y, w, h, 20, 20);
+
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g2.setColor(Color.WHITE);
+        g2.drawString(msg, x + 20, y + 32);
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
     }
 
     private void drawPiecesAndEffects(Graphics2D g2) {
         int size = Board.SQUARE_SIZE;
 
-        // Highlight King khi bị chiếu
         if (controller.getCheckingP() != null) {
             Piece king = controller.getKing(false);
             if (king != null) {
@@ -108,7 +217,6 @@ public class GamePanel extends JPanel {
             }
         }
 
-        // Highlight nước đi hợp lệ
         Piece activeP = controller.getActiveP();
         if (activeP != null && controller.isClickedToMove() && !controller.isPromotion()) {
             g2.setColor(new Color(255, 165, 0, 120));
@@ -122,7 +230,6 @@ public class GamePanel extends JPanel {
             }
         }
 
-        // Vẽ các quân cờ
         for (Piece p : controller.getSimPieces()) {
             g2.drawImage(p.image, controller.getDisplayCol(p.col) * size,
                     controller.getDisplayRow(p.row) * size, size, size, null);
@@ -135,7 +242,7 @@ public class GamePanel extends JPanel {
         int boardRight = BOARD_W + 20;
         g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
 
-        // Đối thủ (Phía trên)
+        // Đối thủ
         g2.setColor(new Color(45, 45, 45));
         g2.fillRoundRect(boardRight, 20, 160, 80, 15, 15);
         g2.setColor(Color.WHITE);
@@ -143,19 +250,27 @@ public class GamePanel extends JPanel {
         g2.setColor(controller.playerColor == GameController.WHITE ? Color.BLACK : Color.WHITE);
         g2.fillOval(boardRight + 15, 30, 25, 25);
 
-        // Bạn (Phía dưới)
+        // Bạn
         g2.setColor(new Color(60, 60, 60));
         g2.fillRoundRect(boardRight, 500, 160, 80, 15, 15);
         g2.setColor(new Color(0, 255, 100));
-        g2.drawString("You (" + (controller.isServer ? "Host" : "Join") + ")", boardRight + 45, 525);
+        String role = controller.isMultiplayer ? (controller.isServer ? "Host" : "Join") : "Local";
+        g2.drawString("You (" + role + ")", boardRight + 45, 525);
         g2.setColor(controller.playerColor == GameController.WHITE ? Color.WHITE : Color.BLACK);
         g2.fillOval(boardRight + 15, 510, 25, 25);
 
         // Turn & Time
         g2.setColor(Color.ORANGE);
         g2.drawString((controller.getCurrentColor() == 0 ? "WHITE" : "BLACK") + "'S TURN", boardRight, 250);
-        g2.setColor(Color.WHITE);
-        g2.drawString("TIME: " + controller.getTimeLeft() + "s", boardRight, 280);
+
+        int time = controller.getTimeLeft();
+        if (time <= 5) {
+            float flash = (System.currentTimeMillis() % 1000) / 1000f;
+            g2.setColor(new Color(255, 0, 0, (int)(150 + 105 * flash)));
+        } else {
+            g2.setColor(Color.WHITE);
+        }
+        g2.drawString("TIME: " + time + "s", boardRight, 280);
 
         if (controller.getCurrentColor() == controller.playerColor) {
             g2.setColor(Color.GREEN);
@@ -178,7 +293,23 @@ public class GamePanel extends JPanel {
         }
     }
 
-    private void drawPhysicalPauseButton(Graphics2D g2) { if (GameState.currentState != State.PLAYING || controller.isGameOver()) return; int x = getWidth() - 55, y = 10, size = 45; g2.setColor(isHoveringPause ? new Color(90, 90, 90) : new Color(50, 50, 50)); g2.fillRoundRect(x, y, size, size, 10, 10); g2.setColor(Color.WHITE); g2.setStroke(new BasicStroke(2)); g2.drawRoundRect(x, y, size, size, 10, 10); g2.setFont(new Font("Arial", Font.BOLD, 20)); g2.drawString("||", x + 16, y + 30); }
-    private void drawGameOver(Graphics2D g2) { g2.setColor(new Color(0, 0, 0, 200)); double s = (double) getHeight() / LOGIC_H; int totalLW = (int) (getWidth() / s); g2.fillRect(0, 0, totalLW, LOGIC_H); g2.setFont(new Font("Arial", Font.BOLD, 60)); if (controller.isDraw()) { g2.setColor(Color.YELLOW); String msg = "DRAW GAME"; g2.drawString(msg, totalLW / 2 - g2.getFontMetrics().stringWidth(msg)/2, 300); } else { g2.setColor(Color.GREEN); String winner = (controller.getCurrentColor() == 0) ? "BLACK WINS!" : "WHITE WINS!"; g2.drawString(winner, totalLW / 2 - g2.getFontMetrics().stringWidth(winner)/2, 300); } g2.setFont(new Font("Arial", Font.PLAIN, 20)); g2.setColor(Color.WHITE); String subMsg = "Press ESC to return to Menu"; g2.drawString(subMsg, totalLW / 2 - g2.getFontMetrics().stringWidth(subMsg)/2, 360); }
-    public BufferedImage getGameSnapshot() { BufferedImage image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB); Graphics2D g2d = image.createGraphics(); this.printAll(g2d); g2d.dispose(); return image; }
+    private void drawPhysicalPauseButton(Graphics2D g2) {
+        if (GameState.currentState != State.PLAYING || controller.isGameOver()) return;
+        int x = getWidth() - 55, y = 10, size = 45;
+        g2.setColor(isHoveringPause ? new Color(90, 90, 90) : new Color(50, 50, 50));
+        g2.fillRoundRect(x, y, size, size, 10, 10);
+        g2.setColor(Color.WHITE);
+        g2.setStroke(new BasicStroke(2));
+        g2.drawRoundRect(x, y, size, size, 10, 10);
+        g2.setFont(new Font("Arial", Font.BOLD, 20));
+        g2.drawString("||", x + 16, y + 30);
+    }
+
+    public BufferedImage getGameSnapshot() {
+        BufferedImage image = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = image.createGraphics();
+        this.printAll(g2d);
+        g2d.dispose();
+        return image;
+    }
 }

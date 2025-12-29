@@ -15,60 +15,127 @@ public class NetworkManager {
         this.controller = controller;
     }
 
+    // =========================================================
+    // 1. KẾT NỐI (HOST & JOIN)
+    // =========================================================
+
+    /** Khởi tạo Server (Host) */
     public void hostGame(int port) {
         new Thread(() -> {
             try {
-                serverSocket = new ServerSocket(port);
+                serverSocket = new ServerSocket();
+                serverSocket.setReuseAddress(true); // Cho phép dùng lại cổng ngay lập tức khi restart
+                serverSocket.bind(new InetSocketAddress(port));
+
+                System.out.println("Server đang chờ kết nối tại cổng: " + port);
                 socket = serverSocket.accept();
                 setupStreams();
 
+                // Gửi cấu hình màu quân cờ cho Client
                 sendConfig(new GameConfigPacket(controller.playerColor));
 
-                // Cập nhật quan trọng: Đóng Dialog chờ và bắt đầu game
+                // Chạy trên luồng UI để đóng Dialog chờ và vào game
                 javax.swing.SwingUtilities.invokeLater(() -> {
-                    controller.getMenuPanel().closeWaitingDialog(); // Tắt thông báo chờ
+                    controller.getMenuPanel().closeWaitingDialog();
                     controller.startNewGame();
                 });
 
                 listenForData();
-            } catch (IOException e) { e.printStackTrace(); }
+            } catch (IOException e) {
+                if (!e.getMessage().contains("Socket closed")) {
+                    System.err.println("Lỗi Server: " + e.getMessage());
+                }
+            }
         }).start();
     }
 
+    /** Kết nối tới Server (Join) */
     public void joinGame(String ip, int port) {
         new Thread(() -> {
             try {
                 socket = new Socket(ip, port);
                 setupStreams();
+                System.out.println("Đã kết nối tới Server: " + ip);
                 listenForData();
-            } catch (IOException e) { e.printStackTrace(); }
+            } catch (IOException e) {
+                System.err.println("Không thể kết nối tới Server: " + e.getMessage());
+            }
         }).start();
     }
 
+    // =========================================================
+    // 2. TRUYỀN TẢI DỮ LIỆU (SEND & LISTEN)
+    // =========================================================
+
+    /** Thiết lập luồng dữ liệu Object */
     private void setupStreams() throws IOException {
         out = new ObjectOutputStream(socket.getOutputStream());
         in = new ObjectInputStream(socket.getInputStream());
     }
 
+    /** Gửi thông tin nước đi hoặc lệnh điều khiển (Rematch) */
     public void sendMove(MovePacket packet) {
         try {
-            if (out != null) { out.writeObject(packet); out.flush(); }
-        } catch (IOException e) { e.printStackTrace(); }
+            if (out != null) {
+                out.writeObject(packet);
+                out.flush();
+            }
+        } catch (IOException e) {
+            System.err.println("Lỗi gửi dữ liệu nước đi: " + e.getMessage());
+        }
     }
 
+    /** Gửi cấu hình ban đầu (Màu sắc, thời gian...) */
     public void sendConfig(GameConfigPacket packet) {
         try {
-            if (out != null) { out.writeObject(packet); out.flush(); }
-        } catch (IOException e) { e.printStackTrace(); }
+            if (out != null) {
+                out.writeObject(packet);
+                out.flush();
+            }
+        } catch (IOException e) {
+            System.err.println("Lỗi gửi cấu hình: " + e.getMessage());
+        }
     }
 
+    /** Luồng lắng nghe dữ liệu từ đối thủ */
     private void listenForData() {
         try {
             while (socket != null && !socket.isClosed()) {
                 Object data = in.readObject();
-                if (data instanceof MovePacket) controller.receiveNetworkMove((MovePacket) data);
-                else if (data instanceof GameConfigPacket) controller.onConfigReceived((GameConfigPacket) data);
+
+                if (data instanceof MovePacket) {
+                    // Controller sẽ xử lý nước đi hoặc các tọa độ đặc biệt (-1, -2)
+                    controller.receiveNetworkMove((MovePacket) data);
+                }
+                else if (data instanceof GameConfigPacket) {
+                    controller.onConfigReceived((GameConfigPacket) data);
+                }
             }
-        } catch (Exception e) { System.out.println("Disconnected."); }
+        } catch (Exception e) {
+            System.out.println("Đối thủ đã ngắt kết nối.");
+            // Tự động thoát về Menu khi mất kết nối đột ngột
+            javax.swing.SwingUtilities.invokeLater(() -> controller.exitToMenu());
+        } finally {
+            closeConnection();
+        }
+    }
+
+    // =========================================================
+    // 3. GIẢI PHÓNG TÀI NGUYÊN
+    // =========================================================
+
+    /** Đóng toàn bộ kết nối và luồng */
+    public void closeConnection() {
+        try {
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (socket != null) socket.close();
+            if (serverSocket != null) serverSocket.close();
+            System.out.println("Hệ thống mạng đã đóng sạch sẽ.");
+        } catch (IOException e) {
+            System.err.println("Lỗi khi đóng kết nối: " + e.getMessage());
+        } finally {
+            in = null; out = null; socket = null; serverSocket = null;
+        }
     }
 }
