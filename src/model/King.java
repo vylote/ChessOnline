@@ -18,44 +18,42 @@ public class King extends Piece {
 
     public boolean canMove(int targetCol, int targetRow) {
         if (isWithinBoard(targetCol, targetRow) && !isSameSquare(targetCol, targetRow)) {
-
-            // movement
-            if (Math.abs(targetRow-preRow) + Math.abs(targetCol-preCol) == 1 ||
-                    Math.abs(targetRow-preRow) * Math.abs(targetCol-preCol) == 1) {
-                if (isValidSquare(targetCol, targetRow)) {
-                    return true;
-                }
+            // Di chuyển 1 ô
+            if (Math.abs(targetRow - preRow) + Math.abs(targetCol - preCol) == 1 ||
+                    Math.abs(targetRow - preRow) * Math.abs(targetCol - preCol) == 1) {
+                if (isValidSquare(targetCol, targetRow)) return true;
             }
 
-            // castling
+            // NHẬP THÀNH
             if (!moved) {
-                // right castling
-                if (targetRow == preRow && targetCol == preCol+2 && !pieceIsOnStraightline(targetCol, targetRow)) {
+                // Nhập thành phải (Cột 7)
+                if (targetRow == preRow && targetCol == preCol + 2 && !pieceIsOnStraightline(targetCol, targetRow)) {
                     for (Piece piece : GameController.simPieces) {
-                        if (piece.col == preCol+3 && piece.row == preRow && !piece.moved) {
+                        if (piece.type == Type.ROOK && piece.color == this.color &&
+                                piece.row == preRow && piece.col == preCol + 3 && !piece.moved) {
                             GameController.castlingP = piece;
                             return true;
                         }
                     }
                 }
+                // Nhập thành trái (Cột 0)
+                if (targetRow == preRow && targetCol == preCol - 2 && !pieceIsOnStraightline(targetCol, targetRow)) {
+                    Piece bSquarePiece = null; // Ô cột 1 (Knight square)
+                    Piece rookPiece = null;    // Ô cột 0 (Rook square)
 
-                // left castling
-                if (targetRow == preRow && targetCol == preCol-2 && !pieceIsOnStraightline(targetCol, targetRow)) {
-                    Piece[] p = new Piece[2];
                     for (Piece piece : GameController.simPieces) {
-                        if (piece.col == preCol-3 && piece.row == preRow) {
-                            p[0] = piece;
-                        }
-                        if (piece.col == preCol-4 && piece.row == preRow) {
-                            p[1] = piece;
-                        }
-                        if (p[0] == null && p[1] != null && !p[1].moved) {
-                            GameController.castlingP = p[1];
-                            return true;
+                        if (piece.row == preRow) {
+                            if (piece.col == preCol - 3) bSquarePiece = piece;
+                            if (piece.col == preCol - 4) rookPiece = piece;
                         }
                     }
+                    // FIX: Phải kiểm tra ô bSquarePiece (cột 1) có trống không (null)
+                    if (bSquarePiece == null && rookPiece != null &&
+                            rookPiece.type == Type.ROOK && !rookPiece.moved) {
+                        GameController.castlingP = rookPiece;
+                        return true;
+                    }
                 }
-
             }
         }
         return false;

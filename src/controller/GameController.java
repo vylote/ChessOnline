@@ -43,7 +43,7 @@ public class GameController implements Runnable {
     public boolean isTimeRunning = false;
     private boolean isClickedToMove = false;
     private float toastAlpha = 0;
-    private int timeLeft = 10;
+    private int timeLeft = 20;
     private long lastSecond = System.currentTimeMillis();
 
     // --- 4. FIELDS: MULTIPLAYER ---
@@ -307,6 +307,7 @@ public class GameController implements Runnable {
             if (castlingP.col == activeP.col + 3) castlingP.col = activeP.col + 1;
             else if (castlingP.col == activeP.col - 4) castlingP.col = activeP.col - 1;
             // QUAN TRỌNG: Cập nhật cả preCol/preRow để xóa vết cũ hoàn toàn
+            castlingP.moved = true;
             castlingP.preCol = castlingP.col;
             castlingP.preRow = castlingP.row;
             castlingP.updatePosition();
@@ -589,7 +590,7 @@ public class GameController implements Runnable {
 
             // Tìm quân Xe để giả lập tiếp vị trí cuối (như bạn đã làm)
             for (Piece targetXe : simPieces) {
-                if (targetXe.type == Type.ROOK && targetXe.color == p.color) {
+                if (targetXe.type == Type.ROOK && targetXe.color == p.color && targetXe.row == p.row) {
                     if (tc > oC && targetXe.col == 7) vRook = targetXe;
                     else if (tc < oC && targetXe.col == 0) vRook = targetXe;
                 }
@@ -760,7 +761,7 @@ public class GameController implements Runnable {
     }
 
     public void resetTime() {
-        timeLeft = 10;
+        timeLeft = 20;
         lastSecond = System.currentTimeMillis();
     }
 

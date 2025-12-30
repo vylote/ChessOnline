@@ -116,12 +116,24 @@ public class MenuPanel extends JPanel {
     public void closeWaitingDialog() { if (waitingDialog != null) { waitingDialog.dispose(); waitingDialog = null; } }
 
     private void initSliders() {
-        bgmSlider = new JSlider(0, 100, controller.getAudioManager().getBGMVolumeAsInt());
-        sfxSlider = new JSlider(0, 100, controller.getAudioManager().getSFXVolumeAsInt());
-        bgmSlider.setOpaque(false); sfxSlider.setOpaque(false);
+        bgmSlider = new JSlider(0, 100);
+        sfxSlider = new JSlider(0, 100);
+
+        configureSlider(bgmSlider, controller.getAudioManager().getBGMVolumeAsInt());
+        configureSlider(sfxSlider, controller.getAudioManager().getSFXVolumeAsInt());
+
         bgmSlider.addChangeListener(e -> controller.getAudioManager().setBGMVolumeFromSlider(bgmSlider.getValue()));
         sfxSlider.addChangeListener(e -> controller.getAudioManager().setSFXVolumeFromSlider(sfxSlider.getValue()));
+
         add(bgmSlider); add(sfxSlider);
+    }
+
+    private void configureSlider(JSlider slider, int value) {
+        slider.setValue(value);
+        slider.setOpaque(false);
+        slider.setFocusable(false);
+        // Tùy chỉnh màu sắc cơ bản cho Slider (tùy vào LookAndFeel)
+        slider.setForeground(new Color(46, 204, 113));
     }
 
     private int getCenteredBtnX() { return (int)(((getWidth() / ((double)getHeight()/LOGIC_H)) / 2) - (BTN_W / 2)); }
@@ -139,8 +151,10 @@ public class MenuPanel extends JPanel {
         g2.setColor(new Color(0, 0, 0, 160)); g2.fillRect(0, 0, getWidth(), getHeight());
 
         if (isSettingsMode) {
-            bgmSlider.setBounds((int)((cx + 10) * s), (int)(305 * s), (int)(150 * s), (int)(30 * s));
-            sfxSlider.setBounds((int)((cx + 10) * s), (int)(385 * s), (int)(150 * s), (int)(30 * s));
+            // Căn chỉnh slider khớp với các hàng đã vẽ ở trên
+            int sliderW = 360;
+            bgmSlider.setBounds((int)((cx - sliderW/2) * s), (int)(315 * s), (int)(sliderW * s), (int)(20 * s));
+            sfxSlider.setBounds((int)((cx - sliderW/2) * s), (int)(395 * s), (int)(sliderW * s), (int)(20 * s));
             bgmSlider.setVisible(true); sfxSlider.setVisible(true);
         } else { bgmSlider.setVisible(false); sfxSlider.setVisible(false); }
 
@@ -174,9 +188,29 @@ public class MenuPanel extends JPanel {
 
     private void drawSettingsUI(Graphics2D g2, int cx, int bx) {
         drawTitle(g2, "SETTINGS", cx);
-        g2.setColor(Color.WHITE); g2.drawString("Music Volume", cx - 140, 325);
-        g2.drawString("SFX Volume", cx - 140, 405);
+
+        int panelW = 400;
+        int panelX = cx - panelW / 2;
+
+        // Vẽ khung bao quanh từng mục setting
+        drawSettingRow(g2, panelX, 280, panelW, "MUSIC", bgmSlider.getValue() + "%");
+        drawSettingRow(g2, panelX, 360, panelW, "SOUND FX", sfxSlider.getValue() + "%");
+
         drawBtn(g2, bx, backY, "BACK", Color.GRAY, 5);
+    }
+
+    private void drawSettingRow(Graphics2D g2, int x, int y, int w, String label, String val) {
+        // Vẽ nền mờ cho mỗi hàng
+        g2.setColor(new Color(255, 255, 255, 20));
+        g2.fillRoundRect(x, y, w, 60, 10, 10);
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        g2.drawString(label, x + 20, y + 25);
+
+        g2.setFont(new Font("Monospaced", Font.BOLD, 14));
+        g2.setColor(new Color(46, 204, 113));
+        g2.drawString(val, x + w - 50, y + 25);
     }
 
     private void drawTitle(Graphics2D g2, String t, int cx) {

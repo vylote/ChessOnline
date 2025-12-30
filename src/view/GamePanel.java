@@ -252,43 +252,59 @@ public class GamePanel extends JPanel {
 
     private void drawPlayerInfo(Graphics2D g2) {
         int boardRight = BOARD_W + 20;
+        int curColor = controller.getCurrentColor();
+        int myColor = controller.playerColor;
+
         g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
 
-        // Đối thủ
+        // --- KHỐI ĐỐI THỦ (Phía trên) ---
         g2.setColor(new Color(45, 45, 45));
         g2.fillRoundRect(boardRight, 20, 160, 80, 15, 15);
+
+        // Nếu là lượt đối thủ -> Vẽ viền trắng nhẹ hoặc cam báo hiệu
+        if (curColor != myColor) {
+            g2.setColor(new Color(255, 165, 0)); // Màu cam nhấn mạnh lượt đối thủ
+            g2.setStroke(new BasicStroke(2));
+            g2.drawRoundRect(boardRight, 20, 160, 80, 15, 15);
+        }
+
         g2.setColor(Color.WHITE);
         g2.drawString("Opponent", boardRight + 50, 45);
-        g2.setColor(controller.playerColor == GameController.WHITE ? Color.BLACK : Color.WHITE);
+        g2.setColor(myColor == GameController.WHITE ? Color.BLACK : Color.WHITE);
         g2.fillOval(boardRight + 15, 30, 25, 25);
 
-        // Bạn
+        // --- KHỐI CỦA BẠN (Phía dưới) ---
         g2.setColor(new Color(60, 60, 60));
         g2.fillRoundRect(boardRight, 500, 160, 80, 15, 15);
-        g2.setColor(new Color(0, 255, 100));
-        String role = controller.isMultiplayer ? (controller.isServer ? "Host" : "Join") : "Local";
-        g2.drawString("You (" + role + ")", boardRight + 45, 525);
-        g2.setColor(controller.playerColor == GameController.WHITE ? Color.WHITE : Color.BLACK);
-        g2.fillOval(boardRight + 15, 510, 25, 25);
 
-        // Turn & Time
-        g2.setColor(Color.ORANGE);
-        g2.drawString((controller.getCurrentColor() == 0 ? "WHITE" : "BLACK") + "'S TURN", boardRight, 250);
-
-        int time = controller.getTimeLeft();
-        if (time <= 5) {
-            float flash = (System.currentTimeMillis() % 1000) / 1000f;
-            g2.setColor(new Color(255, 0, 0, (int)(150 + 105 * flash)));
-        } else {
-            g2.setColor(Color.WHITE);
-        }
-        g2.drawString("TIME: " + time + "s", boardRight, 280);
-
-        if (controller.getCurrentColor() == controller.playerColor) {
-            g2.setColor(Color.GREEN);
+        // CHỖ THAY ĐỔI: Chỉ vẽ viền xanh khi là lượt của bạn
+        if (curColor == myColor) {
+            g2.setColor(new Color(46, 204, 113)); // Xanh lá chuyên nghiệp
             g2.setStroke(new BasicStroke(3));
             g2.drawRoundRect(boardRight, 500, 160, 80, 15, 15);
         }
+
+        g2.setColor(new Color(0, 255, 100));
+        String role = controller.isMultiplayer ? (controller.isServer ? "Host" : "Join") : "Local";
+        g2.drawString("You (" + role + ")", boardRight + 45, 525);
+        g2.setColor(myColor == GameController.WHITE ? Color.WHITE : Color.BLACK);
+        g2.fillOval(boardRight + 15, 510, 25, 25);
+
+        // --- THÔNG TIN TRẠNG THÁI ---
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        g2.setColor(Color.GRAY);
+        g2.drawString("STATUS", boardRight, 230);
+
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        g2.setColor(curColor == 0 ? Color.WHITE : new Color(180, 180, 180));
+        String turnText = (curColor == myColor) ? "YOUR TURN" : "WAITING...";
+        g2.drawString(turnText, boardRight, 255);
+
+        // Đồng hồ (Time Left)
+        int time = controller.getTimeLeft();
+        g2.setFont(new Font("Monospaced", Font.BOLD, 30));
+        g2.setColor(time <= 5 ? Color.RED : Color.WHITE);
+        g2.drawString(String.format("%2d", time), boardRight, 300);
     }
 
     private void drawPromotionUI(Graphics2D g2) {
