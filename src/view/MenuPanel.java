@@ -1,6 +1,8 @@
 package view;
 
 import controller.GameController;
+import controller.DiscoveryService;
+import model.PlayerProfile;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -8,14 +10,13 @@ import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 
 public class MenuPanel extends JPanel {
-    private static final int LOGIC_H = 600; // Chiều cao logic cố định
-    private static final int BTN_W = 300;   // Chiều rộng nút
-    private static final int BTN_H = 50;    // Chiều cao nút
+    private static final int LOGIC_H = 600;
+    private static final int BTN_W = 300;
+    private static final int BTN_H = 50;
 
     private final GameController controller;
     private BufferedImage backgroundImage;
     private BufferedImage[] slotThumbnails = new BufferedImage[4];
-    private JDialog waitingDialog;
 
     private boolean isSettingsMode = false;
     private boolean isLoadMode = false;
@@ -23,7 +24,6 @@ public class MenuPanel extends JPanel {
 
     private JSlider bgmSlider, sfxSlider;
 
-    // Tọa độ Y cho các nút (cách nhau 60px)
     private final int playY = 160, multiY = 220, loadY = 280, settY = 340, exitY = 400, backY = 500;
     private final int[] slotY = {160, 240, 320, 400};
 
@@ -31,7 +31,6 @@ public class MenuPanel extends JPanel {
         this.controller = gc;
         setLayout(null);
 
-        // Nạp ảnh nền
         try {
             backgroundImage = ImageIO.read(getClass().getResourceAsStream("/bg/menu_bg.png"));
         } catch (Exception e) { System.err.println("Menu BG not found."); }
@@ -91,40 +90,65 @@ public class MenuPanel extends JPanel {
     }
 
     private void showMultiplayerDialog() {
+        // 1. Lấy thông tin người chơi (Tên & Màu hình tròn)
+        ProfileDialog prof = new ProfileDialog((JFrame) SwingUtilities.getWindowAncestor(this));
+        prof.setVisible(true);
+        if (!prof.confirmed) return;
+
+        String myName = prof.pName;
+        int myColor = prof.pColor;
+
+        // 2. Chọn chế độ
         String[] options = {"Host Game", "Join Game", "Cancel"};
-        int choice = JOptionPane.showOptionDialog(this, "Chọn chế độ mạng", "Multiplayer", 0, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
+        int choice = JOptionPane.showOptionDialog(this, "Multiplayer Mode", "Select",
+                0, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
 
-        if (choice == 0) { // Host
-            waitingDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Waiting...", true);
-            JPanel p = new JPanel(new GridLayout(3, 1, 10, 10));
-            p.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-            p.add(new JLabel("IP: " + controller.getLocalIP()));
-            p.add(new JLabel("Port: 5555"));
-            JButton cb = new JButton("Cancel");
-            cb.addActionListener(e -> { if(controller.netManager != null) controller.netManager.closeConnection(); waitingDialog.dispose(); });
-            p.add(cb);
-            waitingDialog.add(p); waitingDialog.pack(); waitingDialog.setLocationRelativeTo(this);
+        if (choice == 0) { // HOST
+            // Hiển thị màn hình VS mờ (Lobby)
+            LobbyPanel lobby = new LobbyPanel(myName, myColor);
+            switchToPanel(lobby);
 
-            controller.setupMultiplayer(true, 0, null);
-            waitingDialog.setVisible(true);
-        } else if (choice == 1) { // Join
-            String ip = JOptionPane.showInputDialog(this, "IP Host:", "127.0.0.1");
-            if (ip != null && !ip.isEmpty()) controller.setupMultiplayer(false, 1, ip);
+            // Chạy phát tín hiệu tìm kiếm (UDP 8888)
+            DiscoveryService ds = new DiscoveryService();
+            ds.startBroadcasting(myName, myColor);
+
+            // Mở cổng chờ kết nối (TCP 5555)
+            controller.setupMultiplayer(true, myColor, null);
+
+        } else if (choice == 1) { // JOIN
+            // Mở bảng danh sách các Host tìm thấy tự động
+            InviteDialog inv = new InviteDialog((JFrame) SwingUtilities.getWindowAncestor(this));
+            inv.setVisible(true);
+
+            if (inv.selectedHost != null) {
+                // Hiển thị màn hình VS
+                LobbyPanel lobby = new LobbyPanel(myName, myColor);
+                lobby.setOpponent(inv.selectedHost);
+                switchToPanel(lobby);
+
+                // Kết nối tới IP của Host đã chọn (TCP 5555)
+                // Màu của mình sẽ là màu ngược lại với Host để đảm bảo 1 Trắng 1 Đen
+                int joinerColor = (inv.selectedHost.color == GameController.WHITE) ? GameController.BLACK : GameController.WHITE;
+                controller.setupMultiplayer(false, joinerColor, inv.selectedHost.ip);
+            }
         }
     }
 
-    public void closeWaitingDialog() { if (waitingDialog != null) { waitingDialog.dispose(); waitingDialog = null; } }
+    private void switchToPanel(JPanel panel) {
+        JFrame frame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        frame.getContentPane().removeAll();
+        frame.add(panel);
+        frame.revalidate();
+        frame.repaint();
+    }
 
     private void initSliders() {
         bgmSlider = new JSlider(0, 100);
         sfxSlider = new JSlider(0, 100);
-
         configureSlider(bgmSlider, controller.getAudioManager().getBGMVolumeAsInt());
         configureSlider(sfxSlider, controller.getAudioManager().getSFXVolumeAsInt());
-
         bgmSlider.addChangeListener(e -> controller.getAudioManager().setBGMVolumeFromSlider(bgmSlider.getValue()));
         sfxSlider.addChangeListener(e -> controller.getAudioManager().setSFXVolumeFromSlider(sfxSlider.getValue()));
-
         add(bgmSlider); add(sfxSlider);
     }
 
@@ -132,7 +156,6 @@ public class MenuPanel extends JPanel {
         slider.setValue(value);
         slider.setOpaque(false);
         slider.setFocusable(false);
-        // Tùy chỉnh màu sắc cơ bản cho Slider (tùy vào LookAndFeel)
         slider.setForeground(new Color(46, 204, 113));
     }
 
@@ -151,7 +174,6 @@ public class MenuPanel extends JPanel {
         g2.setColor(new Color(0, 0, 0, 160)); g2.fillRect(0, 0, getWidth(), getHeight());
 
         if (isSettingsMode) {
-            // Căn chỉnh slider khớp với các hàng đã vẽ ở trên
             int sliderW = 360;
             bgmSlider.setBounds((int)((cx - sliderW/2) * s), (int)(315 * s), (int)(sliderW * s), (int)(20 * s));
             sfxSlider.setBounds((int)((cx - sliderW/2) * s), (int)(395 * s), (int)(sliderW * s), (int)(20 * s));
@@ -188,26 +210,19 @@ public class MenuPanel extends JPanel {
 
     private void drawSettingsUI(Graphics2D g2, int cx, int bx) {
         drawTitle(g2, "SETTINGS", cx);
-
         int panelW = 400;
         int panelX = cx - panelW / 2;
-
-        // Vẽ khung bao quanh từng mục setting
         drawSettingRow(g2, panelX, 280, panelW, "MUSIC", bgmSlider.getValue() + "%");
         drawSettingRow(g2, panelX, 360, panelW, "SOUND FX", sfxSlider.getValue() + "%");
-
         drawBtn(g2, bx, backY, "BACK", Color.GRAY, 5);
     }
 
     private void drawSettingRow(Graphics2D g2, int x, int y, int w, String label, String val) {
-        // Vẽ nền mờ cho mỗi hàng
         g2.setColor(new Color(255, 255, 255, 20));
         g2.fillRoundRect(x, y, w, 60, 10, 10);
-
         g2.setColor(Color.WHITE);
         g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
         g2.drawString(label, x + 20, y + 25);
-
         g2.setFont(new Font("Monospaced", Font.BOLD, 14));
         g2.setColor(new Color(46, 204, 113));
         g2.drawString(val, x + w - 50, y + 25);

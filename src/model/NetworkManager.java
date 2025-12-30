@@ -36,11 +36,10 @@ public class NetworkManager {
                 setupStreams();
 
                 // 1. Gửi cấu hình cho Client
-                sendConfig(new GameConfigPacket(controller.playerColor));
+                sendConfig(new GameConfigPacket(controller.playerColor, controller.getMyName()));
 
                 // 2. Chạy trên luồng UI để vào game
                 javax.swing.SwingUtilities.invokeLater(() -> {
-                    controller.getMenuPanel().closeWaitingDialog();
                     controller.startNewGame();
                     controller.isTimeRunning = true;
                 });

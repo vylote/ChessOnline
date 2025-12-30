@@ -423,14 +423,6 @@ public class GameController implements Runnable {
         copyPieces(simPieces, pieces);
     }
 
-    public String getLocalIP() {
-        try {
-            return InetAddress.getLocalHost().getHostAddress();
-        } catch (Exception e) {
-            return "127.0.0.1";
-        }
-    }
-
     // =========================================================
     // NHÓM 5: SAVE / LOAD LOGIC
     // =========================================================
@@ -849,18 +841,53 @@ public class GameController implements Runnable {
         return toastAlpha;
     }
 
+    private String myName;
+    private PlayerProfile opponentProfile;
+
+    // Hàm này gọi từ MenuPanel trước khi Host/Join
+    public void setMyProfile(String name, int color) {
+        this.myName = name;
+        this.playerColor = color;
+    }
+
+    public String getMyName() {return myName;}
+
+    public void onOpponentConnected() {
+        // 1. Chuyển giao diện sang LobbyPanel (Màn hình VS)
+        LobbyPanel lp = new LobbyPanel(myName, playerColor);
+        showPanel(lp);
+
+        // Lưu ý: Lúc này opponentProfile vẫn null, Lobby sẽ hiện "WAITING..." bên phải
+        // Thông tin đối thủ sẽ được cập nhật khi nhận được GameConfigPacket từ Joiner
+    }
+
     // Khi Joiner nhận được Config từ Host
     public void onConfigReceived(GameConfigPacket p) {
         if (!isServer) {
             this.isMultiplayer = true;
+            // Joiner lấy màu ngược với Host
             this.playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
 
-            SwingUtilities.invokeLater(() -> {
+            netManager.sendConfig(new GameConfigPacket(this.playerColor, this.myName));
+        }
+
+        // Nếu đang ở màn hình Lobby, hãy cập nhật thông tin đối thủ
+        JPanel currentPanel = (JPanel) window.getContentPane().getComponent(0);
+        if (currentPanel instanceof LobbyPanel) {
+            LobbyPanel lp = (LobbyPanel) currentPanel;
+            lp.setOpponent(new PlayerProfile(p.playerName, p.hostColor, ""));
+
+            // Đợi 2 giây để người chơi nhìn thấy màn hình "VS" rồi mới vào trận
+            Timer lobbyTimer = new Timer(2000, e -> {
                 startNewGame();
-                // CHỈ chạy đồng hồ khi mọi thứ đã render xong
                 this.isTimeRunning = true;
-                resetTime();
             });
+            lobbyTimer.setRepeats(false);
+            lobbyTimer.start();
+        } else {
+            // Nếu không dùng LobbyPanel, vào thẳng game (Sửa lỗi crash closeWaitingDialog)
+            startNewGame();
+            this.isTimeRunning = true;
         }
     }
 }
