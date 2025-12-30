@@ -270,26 +270,34 @@ public class GameController implements Runnable {
     }
 
     public void finalizeTurn() {
+        // 1. Chốt dữ liệu (Quan trọng để Xe và Vua ở vị trí mới)
+        copyPieces(simPieces, pieces);
+
+        // 2. Ép cập nhật tọa độ vẽ (Xử lý lỗi Ghost Xe)
+        for (Piece p : pieces) {
+            p.updatePosition();
+        }
+
+        // 3. Reset các biến trạng thái
         isClickedToMove = false;
         activeP = null;
         validMoves.clear();
         castlingP = null;
-
-        // RESET TRẠNG THÁI THĂNG CẤP
         promotion = false;
         promoPieces.clear();
 
-        // Đổi lượt
+        // 4. Đổi lượt
         currentColor = (currentColor == WHITE) ? BLACK : WHITE;
 
-        // Reset thuộc tính hai bước của quân Tốt
-        for (Piece p : pieces) if (p.color == currentColor) p.twoStepped = false;
+        // 5. Reset En Passant cho phe vừa đến lượt
+        for (Piece p : pieces) {
+            if (p.color == currentColor) p.twoStepped = false;
+        }
 
-        isKingInCheck();
+        // 6. Reset đồng hồ
         resetTime();
-
-        // QUAN TRỌNG: Đảm bảo đồng hồ luôn chạy tiếp sau khi đổi lượt
         this.isTimeRunning = true;
+        window.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
     }
 
     public void simulateClickToMove(int tc, int tr) {
@@ -298,28 +306,34 @@ public class GameController implements Runnable {
         if (castlingP != null) {
             if (castlingP.col == activeP.col + 3) castlingP.col = activeP.col + 1;
             else if (castlingP.col == activeP.col - 4) castlingP.col = activeP.col - 1;
+            // QUAN TRỌNG: Cập nhật cả preCol/preRow để xóa vết cũ hoàn toàn
+            castlingP.preCol = castlingP.col;
+            castlingP.preRow = castlingP.row;
             castlingP.updatePosition();
         }
         if (activeP.hittingP != null) simPieces.remove(activeP.hittingP);
         activeP.col = tc;
         activeP.row = tr;
         activeP.updatePosition();
+
+        // Đảm bảo đồng bộ lại danh sách pieces chính thức ngay sau khi Xe di chuyển
+        copyPieces(simPieces, pieces);
     }
 
     // =========================================================
     // NHÓM 4: MULTIPLAYER LOGIC
     // =========================================================
-    // CHỖ CẦN SỬA 2: Host phát tín hiệu cấu hình khi bắt đầu
     public void setupMultiplayer(boolean host, int selectedColor, String ip) {
         this.isMultiplayer = true;
         this.isServer = host;
-        this.playerColor = selectedColor; // Host lấy màu từ Menu đã chọn
+        this.playerColor = selectedColor;
+        this.isTimeRunning = false; // Mặc định dừng
 
         this.netManager = new NetworkManager(this);
         if (host) {
             netManager.hostGame(5555);
-            // Sau khi mở port, Host sẵn sàng gửi GameConfigPacket khi có Joiner
-            // (Lưu ý: Việc gửi packet này thường nằm trong callback khi socket kết nối thành công)
+            // Khi Joiner kết nối, NetworkManager của bạn nên gọi một hàm gửi Config
+            // Host sẽ bắt đầu chạy đồng hồ NGAY SAU KHI gửi xong ConfigPacket
         } else {
             netManager.joinGame(ip, 5555);
         }
@@ -332,6 +346,14 @@ public class GameController implements Runnable {
         for (Piece p : simPieces) {
             if (p.col == packet.oldCol && p.row == packet.oldRow) {
                 activeP = p;
+
+                // QUAN TRỌNG: Reset castlingP trước khi kiểm tra
+                castlingP = null;
+
+                // Gọi canMove để Piece tự động tìm và gán quân Xe vào castlingP
+                activeP.canMove(packet.newCol, packet.newRow);
+
+                // Sau đó mới thực hiện simulate di chuyển (bao gồm cả di chuyển Xe)
                 simulateClickToMove(packet.newCol, packet.newRow);
 
                 if (packet.promotionType != -1) {
@@ -343,8 +365,7 @@ public class GameController implements Runnable {
                 copyPieces(simPieces, pieces);
                 playMoveSound(activeP.hittingP != null, castlingP != null);
 
-                // CHỖ CẦN SỬA: Đảm bảo chỉ gọi hàm này.
-                // Nó sẽ tự động gọi finalizeTurn() để đổi lượt cho bạn.
+                // Kiểm tra kết thúc game và đổi lượt
                 checkGameEndConditions();
                 break;
             }
@@ -493,9 +514,21 @@ public class GameController implements Runnable {
     // NHÓM 6: QUY TẮC CỜ (RULES)
     // =========================================================
     private void checkGameEndConditions() {
-        if (isKingInCheck() && isCheckMate()) triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
-        else if (isStaleMate()) triggerEndGame(true, null);
-        else finalizeTurn();
+        if (isKingInCheck()) {
+            if (isCheckMate()) {
+                triggerEndGame(false, (currentColor == WHITE ? BLACK : WHITE));
+            } else {
+                // Hiện chữ "CHECK!" mờ dần nếu bạn muốn
+                toastAlpha = 1.0f;
+                finalizeTurn(); // Không bị chiếu bí -> Đổi lượt
+            }
+        } else {
+            if (isStaleMate()) {
+                triggerEndGame(true, null);
+            } else {
+                finalizeTurn(); // Không vấn đề gì -> Đổi lượt
+            }
+        }
     }
 
     public boolean isInsufficientMaterial() {
@@ -505,12 +538,22 @@ public class GameController implements Runnable {
 
     private boolean isCheckMate() {
         if (!isKingInCheck()) return false;
-        for (Piece p : simPieces)
-            if (p.color == currentColor)
-                for (int r = 0; r < 8; r++)
-                    for (int c = 0; c < 8; c++)
-                        if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) return false;
-        return true;
+
+        for (Piece p : simPieces) {
+            if (p.color == currentColor) {
+                // Thay vì chạy 64 ô, ta chỉ chạy 64 ô nếu p.canMove(c, r)
+                // Logic này có vẻ giống nhau nhưng ta có thể tối ưu simulateMove nội bộ
+                for (int r = 0; r < 8; r++) {
+                    for (int c = 0; c < 8; c++) {
+                        // Nếu có bất kỳ nước đi nào hợp lệ VÀ cứu được Vua
+                        if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true; // Không còn nước nào cứu được -> Chiếu bí
     }
 
     public boolean isKingInCheck() {
@@ -528,13 +571,48 @@ public class GameController implements Runnable {
     private boolean simulateMoveAndKingSafe(Piece p, int tc, int tr) {
         int oR = p.row, oC = p.col;
         Piece cap = p.gettingHitP(tc, tr);
+
+        Piece vRook = null;
+        int vROldCol = -1;
+
+        // 1. Kiểm tra điều kiện "Băng qua ô bị chiếu" khi Nhập thành
+        if (p.type == Type.KING && Math.abs(tc - oC) == 2) {
+            int intermediateCol = (tc > oC) ? oC + 1 : oC - 1;
+
+            // Giả lập Vua đứng ở ô trung gian
+            p.col = intermediateCol;
+            if (opponentsCanCaptureKing()) {
+                p.col = oC; // Trả về vị trí cũ trước khi thoát
+                return false; // Ô trung gian bị kiểm soát -> Không được nhập thành
+            }
+            p.col = oC; // Trả về để thực hiện tiếp giả lập vị trí cuối
+
+            // Tìm quân Xe để giả lập tiếp vị trí cuối (như bạn đã làm)
+            for (Piece targetXe : simPieces) {
+                if (targetXe.type == Type.ROOK && targetXe.color == p.color) {
+                    if (tc > oC && targetXe.col == 7) vRook = targetXe;
+                    else if (tc < oC && targetXe.col == 0) vRook = targetXe;
+                }
+            }
+            if (vRook != null) {
+                vROldCol = vRook.col;
+                vRook.col = (tc > oC) ? tc - 1 : tc + 1;
+            }
+        }
+
+        // 2. Thực hiện giả lập vị trí CUỐI cùng
         if (cap != null) simPieces.remove(cap);
         p.col = tc;
         p.row = tr;
+
         boolean safe = !opponentsCanCaptureKing();
+
+        // 3. Hoàn tác (Backtracking)
         p.col = oC;
         p.row = oR;
         if (cap != null) simPieces.add(cap);
+        if (vRook != null) vRook.col = vROldCol;
+
         return safe;
     }
 
@@ -655,11 +733,13 @@ public class GameController implements Runnable {
 
     public void setPromoPieces() {
         promoPieces.clear();
+        // Lấy màu trực tiếp từ quân tốt đang được chọn (activeP)
+        int pColor = activeP.color;
         // Chỉ thêm vào danh sách nếu quân đó đã bị ăn mất (Cơ sở thăng cấp)
-        if (isPieceLost(Type.QUEEN)) promoPieces.add(new Queen(currentColor, activeP.row, activeP.col));
-        if (isPieceLost(Type.ROOK)) promoPieces.add(new Rook(currentColor, activeP.row, activeP.col));
-        if (isPieceLost(Type.BISHOP)) promoPieces.add(new Bishop(currentColor, activeP.row, activeP.col));
-        if (isPieceLost(Type.KNIGHT)) promoPieces.add(new Knight(currentColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.QUEEN)) promoPieces.add(new Queen(pColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.ROOK)) promoPieces.add(new Rook(pColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.BISHOP)) promoPieces.add(new Bishop(pColor, activeP.row, activeP.col));
+        if (isPieceLost(Type.KNIGHT)) promoPieces.add(new Knight(pColor, activeP.row, activeP.col));
 
         for (Piece p : promoPieces) p.image = reloadPieceImage(p);
     }
@@ -768,16 +848,17 @@ public class GameController implements Runnable {
         return toastAlpha;
     }
 
+    // Khi Joiner nhận được Config từ Host
     public void onConfigReceived(GameConfigPacket p) {
         if (!isServer) {
             this.isMultiplayer = true;
-            // Host chọn màu gì, Joiner lấy màu ngược lại
             this.playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
 
             SwingUtilities.invokeLater(() -> {
                 startNewGame();
-                // Kích hoạt đồng hồ cho Joiner ngay sau khi load game thành công
+                // CHỈ chạy đồng hồ khi mọi thứ đã render xong
                 this.isTimeRunning = true;
+                resetTime();
             });
         }
     }

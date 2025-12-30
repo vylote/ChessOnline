@@ -185,23 +185,35 @@ public class GamePanel extends JPanel {
     // =========================================================
 
     private void drawToast(Graphics2D g2) {
-        String msg = "Cannot pause in Multiplayer mode!";
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        // CHỖ THAY ĐỔI: Quyết định nội dung thông báo
+        String msg = "";
+        if (controller.isKingInCheck() && !controller.isGameOver()) {
+            msg = "CHECK!";
+        } else {
+            msg = "Cannot pause in Multiplayer mode!";
+        }
+
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 25)); // Tăng size chữ cho nổi bật
         FontMetrics fm = g2.getFontMetrics();
         int msgW = fm.stringWidth(msg);
+
+        // Tính toán vị trí chính giữa bàn cờ (BOARD_W = 600)
         int x = (BOARD_W - msgW) / 2 - 20;
         int y = 280;
         int w = msgW + 40;
-        int h = 50;
+        int h = 60;
 
         float alpha = controller.getToastAlpha();
+
+        // Vẽ nền thông báo (Bo tròn)
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.8f));
-        g2.setColor(Color.BLACK);
+        g2.setColor(controller.isKingInCheck() ? new Color(150, 0, 0) : Color.BLACK); // Đỏ nếu là Check
         g2.fillRoundRect(x, y, w, h, 20, 20);
 
+        // Vẽ chữ thông báo
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
         g2.setColor(Color.WHITE);
-        g2.drawString(msg, x + 20, y + 32);
+        g2.drawString(msg, x + 20, y + 40);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
     }
 
