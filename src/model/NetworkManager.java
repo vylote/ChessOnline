@@ -20,7 +20,6 @@ public class NetworkManager {
     // =========================================================
 
     /** Khởi tạo Server (Host) */
-    /** Khởi tạo Server (Host) */
     public void hostGame(int port) {
         new Thread(() -> {
             try {
@@ -30,6 +29,10 @@ public class NetworkManager {
 
                 System.out.println("Server đang chờ kết nối tại cổng: " + port);
                 socket = serverSocket.accept();
+
+                // TỐI ƯU 1: Tắt thuật toán Nagle để gửi gói tin ngay lập tức (Giảm trễ)
+                socket.setTcpNoDelay(true);
+
                 setupStreams();
 
                 // 1. Gửi cấu hình cho Client
@@ -39,8 +42,6 @@ public class NetworkManager {
                 javax.swing.SwingUtilities.invokeLater(() -> {
                     controller.getMenuPanel().closeWaitingDialog();
                     controller.startNewGame();
-
-                    // CHỖ CẦN SỬA: Kích hoạt đồng hồ cho Host sau khi game khởi tạo xong
                     controller.isTimeRunning = true;
                 });
 
@@ -58,6 +59,10 @@ public class NetworkManager {
         new Thread(() -> {
             try {
                 socket = new Socket(ip, port);
+
+                // TỐI ƯU 1: Tắt thuật toán Nagle
+                socket.setTcpNoDelay(true);
+
                 setupStreams();
                 System.out.println("Đã kết nối tới Server: " + ip);
                 listenForData();
@@ -73,21 +78,26 @@ public class NetworkManager {
 
     /** Thiết lập luồng dữ liệu Object */
     private void setupStreams() throws IOException {
+        // Luôn khởi tạo Output và Flush trước để tránh Deadlock
         out = new ObjectOutputStream(socket.getOutputStream());
+        out.flush();
         in = new ObjectInputStream(socket.getInputStream());
     }
 
-    /** Gửi thông tin nước đi hoặc lệnh điều khiển (Rematch) */
+    /** Gửi thông tin nước đi hoặc lệnh điều khiển */
     public void sendMove(MovePacket packet) {
-        try {
-            if (out != null) {
-                out.reset(); // Thêm dòng này để xóa cache Object cũ
-                out.writeObject(packet);
-                out.flush();
+        new Thread(() -> { // Gửi trên luồng riêng để không làm khựng UI
+            try {
+                if (out != null) {
+                    out.writeObject(packet);
+                    out.flush();
+                    // TỐI ƯU 2: Xóa cache stream sau khi flush để dữ liệu luôn mới và nhẹ
+                    out.reset();
+                }
+            } catch (IOException e) {
+                System.err.println("Lỗi gửi dữ liệu nước đi: " + e.getMessage());
             }
-        } catch (IOException e) {
-            System.err.println("Lỗi gửi dữ liệu nước đi: " + e.getMessage());
-        }
+        }).start();
     }
 
     /** Gửi cấu hình ban đầu (Màu sắc, thời gian...) */
@@ -96,6 +106,7 @@ public class NetworkManager {
             if (out != null) {
                 out.writeObject(packet);
                 out.flush();
+                out.reset();
             }
         } catch (IOException e) {
             System.err.println("Lỗi gửi cấu hình: " + e.getMessage());
@@ -109,7 +120,6 @@ public class NetworkManager {
                 Object data = in.readObject();
 
                 if (data instanceof MovePacket) {
-                    // Controller sẽ xử lý nước đi hoặc các tọa độ đặc biệt (-1, -2)
                     controller.receiveNetworkMove((MovePacket) data);
                 }
                 else if (data instanceof GameConfigPacket) {
@@ -118,7 +128,6 @@ public class NetworkManager {
             }
         } catch (Exception e) {
             System.out.println("Đối thủ đã ngắt kết nối.");
-            // Tự động thoát về Menu khi mất kết nối đột ngột
             javax.swing.SwingUtilities.invokeLater(() -> controller.exitToMenu());
         } finally {
             closeConnection();
@@ -129,7 +138,6 @@ public class NetworkManager {
     // 3. GIẢI PHÓNG TÀI NGUYÊN
     // =========================================================
 
-    /** Đóng toàn bộ kết nối và luồng */
     public void closeConnection() {
         try {
             if (in != null) in.close();
