@@ -186,7 +186,7 @@ public class GamePanel extends JPanel {
 
     private void drawToast(Graphics2D g2) {
         // CHỖ THAY ĐỔI: Quyết định nội dung thông báo
-        String msg = "";
+        String msg;
         if (controller.isKingInCheck() && !controller.isGameOver()) {
             msg = "CHECK!";
         } else {
@@ -324,7 +324,6 @@ public class GamePanel extends JPanel {
         // Vẽ dải 4 ô slot (nếu đủ điều kiện captured) xung quanh vị trí thăng cấp
         for (int i = 0; i < promoPieces.size(); i++) {
             // Tính toán vị trí: Vẽ dải dọc theo cột của quân tốt
-            int x = centerX;
             int y = (activeP.color == GameController.WHITE) ? centerY + (i * size) : centerY - (i * size);
 
             // Đảm bảo không vẽ tràn khỏi bàn cờ
@@ -333,18 +332,18 @@ public class GamePanel extends JPanel {
 
             // Cập nhật tọa độ logic cho quân cờ thăng cấp để Controller nhận diện click đúng
             // Ta cần gán lại col/row tạm thời để hàm promoting() trong controller quét trúng
-            promoPieces.get(i).col = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (x/size) : (x/size);
+            promoPieces.get(i).col = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (centerX /size) : (centerX /size);
             promoPieces.get(i).row = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (y/size) : (y/size);
 
             // Vẽ nền ô slot
             g2.setColor(new Color(200, 200, 200, 200));
-            g2.fillRoundRect(x + 5, y + 5, size - 10, size - 10, 10, 10);
+            g2.fillRoundRect(centerX + 5, y + 5, size - 10, size - 10, 10, 10);
             g2.setColor(Color.WHITE);
             g2.setStroke(new BasicStroke(2));
-            g2.drawRoundRect(x + 5, y + 5, size - 10, size - 10, 10, 10);
+            g2.drawRoundRect(centerX + 5, y + 5, size - 10, size - 10, 10, 10);
 
             // Vẽ hình ảnh quân cờ
-            g2.drawImage(promoPieces.get(i).image, x, y, size, size, null);
+            g2.drawImage(promoPieces.get(i).image, centerX, y, size, size, null);
         }
     }
 

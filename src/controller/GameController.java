@@ -3,7 +3,6 @@ package controller;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.imageio.ImageIO;
@@ -142,7 +141,7 @@ public class GameController implements Runnable {
         if (promotion) {
             // CHỖ CẦN SỬA: Nếu đang thăng cấp mà hết giờ, tự động lấy quân đầu tiên trong danh sách
             if (!promoPieces.isEmpty()) {
-                replacePawnAndFinish(promoPieces.get(0));
+                replacePawnAndFinish(promoPieces.getFirst());
             } else {
                 finalizeTurn();
             }
@@ -570,10 +569,9 @@ public class GameController implements Runnable {
 
         // 1. Kiểm tra điều kiện "Băng qua ô bị chiếu" khi Nhập thành
         if (p.type == Type.KING && Math.abs(tc - oC) == 2) {
-            int intermediateCol = (tc > oC) ? oC + 1 : oC - 1;
 
             // Giả lập Vua đứng ở ô trung gian
-            p.col = intermediateCol;
+            p.col = (tc > oC) ? oC + 1 : oC - 1;
             if (opponentsCanCaptureKing()) {
                 p.col = oC; // Trả về vị trí cũ trước khi thoát
                 return false; // Ô trung gian bị kiểm soát -> Không được nhập thành
@@ -714,37 +712,47 @@ public class GameController implements Runnable {
             }
     }
 
-    private boolean isPieceLost(Type type) {
-        int count = 0;
-        for (Piece p : simPieces) {
-            if (p.color == currentColor && p.type == type) count++;
-        }
-        // Queen mặc định có 1, các quân khác mặc định có 2
-        if (type == Type.QUEEN) return count < 1;
-        return count < 2;
-    }
-
     public void setPromoPieces() {
         promoPieces.clear();
-        // Lấy màu trực tiếp từ quân tốt đang được chọn (activeP)
         int pColor = activeP.color;
-        // Chỉ thêm vào danh sách nếu quân đó đã bị ăn mất (Cơ sở thăng cấp)
-        if (isPieceLost(Type.QUEEN)) promoPieces.add(new Queen(pColor, activeP.row, activeP.col));
-        if (isPieceLost(Type.ROOK)) promoPieces.add(new Rook(pColor, activeP.row, activeP.col));
-        if (isPieceLost(Type.BISHOP)) promoPieces.add(new Bishop(pColor, activeP.row, activeP.col));
-        if (isPieceLost(Type.KNIGHT)) promoPieces.add(new Knight(pColor, activeP.row, activeP.col));
+        int col = activeP.col;
+        int row = activeP.row;
 
-        for (Piece p : promoPieces) p.image = reloadPieceImage(p);
+        // Luôn thêm đủ 4 lựa chọn (Không dùng isPieceLost trừ khi bạn muốn chơi luật riêng)
+        promoPieces.add(new Queen(pColor, row, col));
+        promoPieces.add(new Rook(pColor, row, col));
+        promoPieces.add(new Bishop(pColor, row, col));
+        promoPieces.add(new Knight(pColor, row, col));
+
+        // QUAN TRỌNG: Gán tọa độ hiển thị khác nhau để không đè lên nhau
+        for (int i = 0; i < promoPieces.size(); i++) {
+            Piece p = promoPieces.get(i);
+            p.image = reloadPieceImage(p);
+
+            // Xếp hàng dọc: Nếu là quân Trắng hiện từ hàng 0 xuống, Đen hiện từ hàng 7 lên
+            if (pColor == WHITE) {
+                p.row = i;
+            } else {
+                p.row = 7 - i;
+            }
+            p.updatePosition(); // Cập nhật x, y vật lý để vẽ và bắt sự kiện click
+        }
     }
 
 
     private void promoting() {
-        if (mouse.pressed) {
-            for (Piece p : promoPieces)
-                if (mouse.x / Board.SQUARE_SIZE == p.col && mouse.y / Board.SQUARE_SIZE == p.row) {
+        if (mouse.released) { // Dùng released để tránh việc click bị lặp lại nhiều lần
+            int col = mouse.x / Board.SQUARE_SIZE;
+            int row = mouse.y / Board.SQUARE_SIZE;
+
+            for (Piece p : promoPieces) {
+                // Kiểm tra xem người dùng click trúng ô của quân cờ nào trong danh sách
+                if (p.col == col && p.row == row) {
                     replacePawnAndFinish(p);
                     break;
                 }
+            }
+            mouse.released = false; // Reset trạng thái chuột
         }
     }
 
