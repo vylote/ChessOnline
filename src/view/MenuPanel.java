@@ -90,46 +90,43 @@ public class MenuPanel extends JPanel {
     }
 
     private void showMultiplayerDialog() {
-        // 1. Lấy thông tin người chơi (Tên & Màu hình tròn)
-        ProfileDialog prof = new ProfileDialog((JFrame) SwingUtilities.getWindowAncestor(this));
-        prof.setVisible(true);
-        if (!prof.confirmed) return;
-
-        String myName = prof.pName;
-        int myColor = prof.pColor;
-
-        // 2. Chọn chế độ
         String[] options = {"Host Game", "Join Game", "Cancel"};
-        int choice = JOptionPane.showOptionDialog(this, "Multiplayer Mode", "Select",
+        int choice = JOptionPane.showOptionDialog(this, "Chọn chế độ mạng", "Multiplayer",
                 0, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
 
         if (choice == 0) { // HOST
-            // Hiển thị màn hình VS mờ (Lobby)
-            LobbyPanel lobby = new LobbyPanel(myName, myColor);
+            // 1. Host chọn màu trước
+            ProfileDialog prof = new ProfileDialog((JFrame) SwingUtilities.getWindowAncestor(this), -1);
+            prof.setVisible(true);
+            if (!prof.confirmed) return;
+
+            // 2. Thiết lập Lobby và Server
+            LobbyPanel lobby = new LobbyPanel(prof.pName, prof.pColor);
             switchToPanel(lobby);
 
-            // Chạy phát tín hiệu tìm kiếm (UDP 8888)
             DiscoveryService ds = new DiscoveryService();
-            ds.startBroadcasting(myName, myColor);
-
-            // Mở cổng chờ kết nối (TCP 5555)
-            controller.setupMultiplayer(true, myColor, null);
+            ds.startBroadcasting(prof.pName, prof.pColor);
+            controller.setMyProfile(prof.pName, prof.pColor); // Lưu vào controller
+            controller.setupMultiplayer(true, prof.pColor, null);
 
         } else if (choice == 1) { // JOIN
-            // Mở bảng danh sách các Host tìm thấy tự động
+            // 1. Tìm phòng trước
             InviteDialog inv = new InviteDialog((JFrame) SwingUtilities.getWindowAncestor(this));
             inv.setVisible(true);
 
             if (inv.selectedHost != null) {
-                // Hiển thị màn hình VS
-                LobbyPanel lobby = new LobbyPanel(myName, myColor);
+                // 2. Sau khi chọn phòng, mới hiện Profile và báo luôn màu mình sẽ nhận
+                ProfileDialog prof = new ProfileDialog((JFrame) SwingUtilities.getWindowAncestor(this), inv.selectedHost.color);
+                prof.setVisible(true);
+                if (!prof.confirmed) return;
+
+                // 3. Vào Lobby
+                LobbyPanel lobby = new LobbyPanel(prof.pName, prof.pColor);
                 lobby.setOpponent(inv.selectedHost);
                 switchToPanel(lobby);
 
-                // Kết nối tới IP của Host đã chọn (TCP 5555)
-                // Màu của mình sẽ là màu ngược lại với Host để đảm bảo 1 Trắng 1 Đen
-                int joinerColor = (inv.selectedHost.color == GameController.WHITE) ? GameController.BLACK : GameController.WHITE;
-                controller.setupMultiplayer(false, joinerColor, inv.selectedHost.ip);
+                controller.setMyProfile(prof.pName, prof.pColor);
+                controller.setupMultiplayer(false, prof.pColor, inv.selectedHost.ip);
             }
         }
     }
