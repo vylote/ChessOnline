@@ -64,15 +64,12 @@ public class GameController implements Runnable {
         copyPieces(pieces, simPieces);
     }
 
-    // =========================================================
-    // NHÓM 1: ENGINE (VÒNG LẶP GAME)
-    // =========================================================
     public void startNewGame() {
         pieces.clear();
         simPieces.clear();
         setPieces();
         copyPieces(pieces, simPieces);
-        currentColor = WHITE; // Luôn bắt đầu bằng quân Trắng
+        currentColor = WHITE; // Mọi ván đấu bắt đầu bằng Trắng
         gameOver = false;
         isDraw = false;
         isClickedToMove = false;
@@ -80,14 +77,18 @@ public class GameController implements Runnable {
         activeP = null;
         checkingP = null;
         validMoves.clear();
-        resetTime(); // Reset về 10s
+        resetTime();
 
         gamePanel = new GamePanel(this);
         showPanel(gamePanel);
         audioManager.playBGM(GAME_BGM);
 
-        // CHỈNH SỬA: Mặc định dừng đồng hồ cho Multiplayer để đợi handshake hoàn tất
-        isTimeRunning = !isMultiplayer;
+        // CHỈNH SỬA: Khi chơi Multiplayer, đồng hồ chỉ chạy sau khi handshake hoàn tất
+        if (isMultiplayer) {
+            isTimeRunning = true;
+        } else {
+            isTimeRunning = true;
+        }
 
         GameState.currentState = State.PLAYING;
         if (gameThread == null || !gameThread.isAlive()) {
@@ -900,28 +901,27 @@ public class GameController implements Runnable {
     public void onConfigReceived(GameConfigPacket p) {
         if (!isServer) {
             this.isMultiplayer = true;
-            // Joiner lấy màu ngược với Host
+            // Joiner nhận màu ngược với Host
             this.playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
             netManager.sendConfig(new GameConfigPacket(this.playerColor, this.myName));
         }
 
-        // ĐỒNG BỘ: Reset lại toàn bộ quân cờ để đảm bảo màu sắc đồng nhất trên cả 2 máy
+        // QUAN TRỌNG: Gọi setPieces để đồng bộ màu sắc quân cờ giữa 2 máy
         setPieces();
         copyPieces(pieces, simPieces);
-        currentColor = WHITE; // Mọi ván đấu luôn bắt đầu bằng quân Trắng
 
         JPanel currentPanel = (JPanel) window.getContentPane().getComponent(0);
         if (currentPanel instanceof LobbyPanel) {
             LobbyPanel lp = (LobbyPanel) currentPanel;
             lp.setOpponent(new PlayerProfile(p.playerName, p.hostColor, ""));
 
-            Timer lobbyTimer = new Timer(2000, e -> {
-                // Không gọi startNewGame() vì sẽ làm loạn trạng thái vừa đồng bộ
+            Timer lobbyTimer = new Timer(1500, e -> {
+                // Thiết lập trạng thái chơi mà không gọi lại startNewGame() để tránh reset isTimeRunning
                 gamePanel = new GamePanel(this);
                 showPanel(gamePanel);
                 audioManager.playBGM(GAME_BGM);
                 GameState.currentState = State.PLAYING;
-                this.isTimeRunning = true; // Kích hoạt đồng hồ sau khi vào trận
+                this.isTimeRunning = true; // Kích hoạt đồng hồ
             });
             lobbyTimer.setRepeats(false);
             lobbyTimer.start();
