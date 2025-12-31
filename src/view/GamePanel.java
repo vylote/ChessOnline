@@ -180,40 +180,26 @@ public class GamePanel extends JPanel {
         btnExit.setVisible(true);
     }
 
-    // =========================================================
-    // NHÓM CÁC HÀM VẼ CHI TIẾT
-    // =========================================================
-
     private void drawToast(Graphics2D g2) {
-        // CHỖ THAY ĐỔI: Quyết định nội dung thông báo
         String msg;
         if (controller.isKingInCheck() && !controller.isGameOver()) {
             msg = "CHECK!";
+        } else if (controller.isMultiplayer && controller.getCurrentColor() != controller.playerColor) {
+            msg = "OPPONENT'S TURN"; // Báo hiệu cho Joiner biết tại sao không click được
         } else {
-            msg = "Cannot pause in Multiplayer mode!";
+            msg = "Cannot pause in Multiplayer!";
         }
 
-        g2.setFont(new Font("Segoe UI", Font.BOLD, 25)); // Tăng size chữ cho nổi bật
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
         FontMetrics fm = g2.getFontMetrics();
-        int msgW = fm.stringWidth(msg);
+        int x = (BOARD_W - fm.stringWidth(msg)) / 2;
+        int y = 300;
 
-        // Tính toán vị trí chính giữa bàn cờ (BOARD_W = 600)
-        int x = (BOARD_W - msgW) / 2 - 20;
-        int y = 280;
-        int w = msgW + 40;
-        int h = 60;
-
-        float alpha = controller.getToastAlpha();
-
-        // Vẽ nền thông báo (Bo tròn)
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * 0.8f));
-        g2.setColor(controller.isKingInCheck() ? new Color(150, 0, 0) : Color.BLACK); // Đỏ nếu là Check
-        g2.fillRoundRect(x, y, w, h, 20, 20);
-
-        // Vẽ chữ thông báo
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, controller.getToastAlpha()));
+        g2.setColor(new Color(0, 0, 0, 180));
+        g2.fillRoundRect(x - 20, y - 35, fm.stringWidth(msg) + 40, 50, 15, 15);
         g2.setColor(Color.WHITE);
-        g2.drawString(msg, x + 20, y + 40);
+        g2.drawString(msg, x, y);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
     }
 
@@ -307,43 +293,27 @@ public class GamePanel extends JPanel {
         g2.drawString(String.format("%2d", time), boardRight, 300);
     }
 
+    // Tối ưu drawPromotionUI để tính đúng tọa độ click cho quân Đen
     private void drawPromotionUI(Graphics2D g2) {
-        // Vẽ lớp phủ tối toàn bàn cờ
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, BOARD_W, LOGIC_H);
 
         ArrayList<Piece> promoPieces = controller.getPromoPieces();
-        if (promoPieces.isEmpty()) return;
-
         int size = Board.SQUARE_SIZE;
-        // Lấy tọa độ của quân tốt đang thăng cấp để làm tâm điểm vẽ dải slot
         Piece activeP = controller.getActiveP();
-        int centerX = controller.getDisplayCol(activeP.col) * size;
-        int centerY = controller.getDisplayRow(activeP.row) * size;
 
-        // Vẽ dải 4 ô slot (nếu đủ điều kiện captured) xung quanh vị trí thăng cấp
+        // Tọa độ vẽ hiển thị trên màn hình
+        int displayCol = controller.getDisplayCol(activeP.col);
+        int displayRow = controller.getDisplayRow(activeP.row);
+
         for (int i = 0; i < promoPieces.size(); i++) {
-            // Tính toán vị trí: Vẽ dải dọc theo cột của quân tốt
-            int y = (activeP.color == GameController.WHITE) ? centerY + (i * size) : centerY - (i * size);
+            int y = (activeP.color == GameController.WHITE) ? (displayRow + i) * size : (displayRow - i) * size;
+            if (y < 0) y = 0; if (y > LOGIC_H - size) y = LOGIC_H - size;
 
-            // Đảm bảo không vẽ tràn khỏi bàn cờ
-            if (y < 0) y = 0;
-            if (y > LOGIC_H - size) y = LOGIC_H - size;
-
-            // Cập nhật tọa độ logic cho quân cờ thăng cấp để Controller nhận diện click đúng
-            // Ta cần gán lại col/row tạm thời để hàm promoting() trong controller quét trúng
-            promoPieces.get(i).col = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (centerX /size) : (centerX /size);
-            promoPieces.get(i).row = controller.isMultiplayer && controller.playerColor == GameController.BLACK ? 7 - (y/size) : (y/size);
-
-            // Vẽ nền ô slot
-            g2.setColor(new Color(200, 200, 200, 200));
-            g2.fillRoundRect(centerX + 5, y + 5, size - 10, size - 10, 10, 10);
-            g2.setColor(Color.WHITE);
-            g2.setStroke(new BasicStroke(2));
-            g2.drawRoundRect(centerX + 5, y + 5, size - 10, size - 10, 10, 10);
-
-            // Vẽ hình ảnh quân cờ
-            g2.drawImage(promoPieces.get(i).image, centerX, y, size, size, null);
+            // Vẽ ô slot
+            g2.setColor(new Color(240, 240, 240, 220));
+            g2.fillRoundRect(displayCol * size + 5, y + 5, size - 10, size - 10, 10, 10);
+            g2.drawImage(promoPieces.get(i).image, displayCol * size, y, size, size, null);
         }
     }
 

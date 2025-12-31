@@ -90,7 +90,8 @@ public class NetworkManager {
         try {
             while (socket != null && !socket.isClosed()) {
                 Object data = in.readObject();
-                // SỬA LỖI: Đẩy xử lý logic vào Luồng giao diện (EDT)
+
+                // SỬA LỖI QUAN TRỌNG: Mọi thay đổi logic từ Network phải chạy trên luồng UI
                 SwingUtilities.invokeLater(() -> {
                     if (data instanceof MovePacket) {
                         controller.receiveNetworkMove((MovePacket) data);

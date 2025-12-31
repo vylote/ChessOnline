@@ -49,24 +49,20 @@ public abstract class Piece implements Serializable {
 
     public int getX(int col) { return col*Board.SQUARE_SIZE; }
     public int getY(int row) { return row*Board.SQUARE_SIZE; }
-    // Trong Piece.java
-    public void updatePosition() {
-        // Chỉ cập nhật tọa độ đồ họa dựa trên col và row hiện tại
-        x = getX(col);
-        y = getY(row);
 
-        // Xóa dòng moved = true; ở đây
+    public void updatePosition() {
+        this.x = col * Board.SQUARE_SIZE;
+        this.y = row * Board.SQUARE_SIZE;
     }
 
-    // Thêm một hàm mới để gọi khi kết thúc một nước đi thực tế
     public void finishMove() {
-        updatePosition();
+        updatePosition(); // Cập nhật x, y ngay lập tức cho Render
         if (type == Type.PAWN && Math.abs(preRow - row) == 2) {
             twoStepped = true;
         }
         preCol = col;
         preRow = row;
-        moved = true; // Chỉ đánh dấu đã di chuyển ở đây
+        moved = true;
     }
 
     public boolean canMove(int targetCol, int targetRow) {
