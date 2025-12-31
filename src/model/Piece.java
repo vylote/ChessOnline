@@ -101,15 +101,6 @@ public abstract class Piece implements Serializable {
         return false;
     }
 
-//    public int getIndex() {
-//        for (int index = 0; index < GameController.simPieces.size(); ++index) {
-//            if (GameController.simPieces.get(index) == this) {
-//                return index;
-//            }
-//        }
-//        return 0;
-//    }
-
     public boolean isSameSquare(int targetCol, int targetRow) {
         return targetCol == preCol && targetRow == preRow;
     }

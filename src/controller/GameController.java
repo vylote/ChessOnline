@@ -563,22 +563,30 @@ public class GameController implements Runnable {
     private boolean simulateMoveAndKingSafe(Piece p, int tc, int tr) {
         int oR = p.row, oC = p.col;
         Piece cap = p.gettingHitP(tc, tr);
-
         Piece vRook = null;
         int vROldCol = -1;
 
-        // 1. Kiểm tra điều kiện "Băng qua ô bị chiếu" khi Nhập thành
+        // QUY TẮC: Không được nhập thành khi ĐANG bị chiếu
         if (p.type == Type.KING && Math.abs(tc - oC) == 2) {
+            if (opponentsCanCaptureKing()) return false;
 
-            // Giả lập Vua đứng ở ô trung gian
-            p.col = (tc > oC) ? oC + 1 : oC - 1;
-            if (opponentsCanCaptureKing()) {
-                p.col = oC; // Trả về vị trí cũ trước khi thoát
-                return false; // Ô trung gian bị kiểm soát -> Không được nhập thành
+            int step = (tc > oC) ? 1 : -1;
+
+            // KIỂM TRA VẬT CẢN: Giữa Vua và Xe không được có quân cờ nào
+            int endCol = (tc > oC) ? 7 : 0;
+            for (int col = oC + step; col != endCol; col += step) {
+                if (getPieceAt(col, tr) != null) return false;
             }
-            p.col = oC; // Trả về để thực hiện tiếp giả lập vị trí cuối
 
-            // Tìm quân Xe để giả lập tiếp vị trí cuối (như bạn đã làm)
+            // KIỂM TRA Ô TRUNG GIAN: Vua không được đi qua ô bị chiếu
+            p.col = oC + step;
+            if (opponentsCanCaptureKing()) {
+                p.col = oC; // Hoàn tác tọa độ giả lập
+                return false;
+            }
+            p.col = oC;
+
+            // Giả lập Xe di chuyển khi nhập thành
             for (Piece targetXe : simPieces) {
                 if (targetXe.type == Type.ROOK && targetXe.color == p.color && targetXe.row == p.row) {
                     if (tc > oC && targetXe.col == 7) vRook = targetXe;
@@ -591,20 +599,25 @@ public class GameController implements Runnable {
             }
         }
 
-        // 2. Thực hiện giả lập vị trí CUỐI cùng
+        // Thực hiện giả lập nước đi cuối
         if (cap != null) simPieces.remove(cap);
-        p.col = tc;
-        p.row = tr;
-
+        p.col = tc; p.row = tr;
         boolean safe = !opponentsCanCaptureKing();
 
-        // 3. Hoàn tác (Backtracking)
-        p.col = oC;
-        p.row = oR;
+        // Hoàn tác (Backtracking) để không làm hỏng dữ liệu thật
+        p.col = oC; p.row = oR;
         if (cap != null) simPieces.add(cap);
         if (vRook != null) vRook.col = vROldCol;
 
         return safe;
+    }
+
+    // Thêm hàm tìm quân cờ tại tọa độ cụ thể để kiểm tra vật cản
+    private Piece getPieceAt(int col, int row) {
+        for (Piece piece : simPieces) {
+            if (piece.col == col && piece.row == row) return piece;
+        }
+        return null;
     }
 
     private boolean opponentsCanCaptureKing() {
@@ -663,10 +676,20 @@ public class GameController implements Runnable {
 
     private void calculateValidMoves(Piece p) {
         validMoves.clear();
-        for (int r = 0; r < 8; r++)
-            for (int c = 0; c < 8; c++)
-                if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r))
-                    validMoves.add(new int[]{c, r, (p.gettingHitP(c, r) != null ? 1 : 0)});
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                if (p.canMove(c, r)) {
+                    // KIỂM TRA: Ô mục tiêu không được là quân Vua của đối phương
+                    Piece target = p.gettingHitP(c, r);
+                    if (target != null && target.type == Type.KING) continue;
+
+                    // Kiểm tra xem sau khi đi nước này, Vua mình có an toàn không
+                    if (simulateMoveAndKingSafe(p, c, r)) {
+                        validMoves.add(new int[]{c, r, (target != null ? 1 : 0)});
+                    }
+                }
+            }
+        }
     }
 
     private void playMoveSound(boolean cap, boolean castled) {
@@ -741,18 +764,23 @@ public class GameController implements Runnable {
 
 
     private void promoting() {
-        if (mouse.released) { // Dùng released để tránh việc click bị lặp lại nhiều lần
+        if (mouse.released) {
             int col = mouse.x / Board.SQUARE_SIZE;
             int row = mouse.y / Board.SQUARE_SIZE;
 
+            // CẦN THÊM: Đảo ngược tọa độ nếu là quân Đen trong Multiplayer
+            if (isMultiplayer && playerColor == BLACK) {
+                col = 7 - col;
+                row = 7 - row;
+            }
+
             for (Piece p : promoPieces) {
-                // Kiểm tra xem người dùng click trúng ô của quân cờ nào trong danh sách
                 if (p.col == col && p.row == row) {
                     replacePawnAndFinish(p);
                     break;
                 }
             }
-            mouse.released = false; // Reset trạng thái chuột
+            mouse.released = false;
         }
     }
 
@@ -869,33 +897,34 @@ public class GameController implements Runnable {
         // Thông tin đối thủ sẽ được cập nhật khi nhận được GameConfigPacket từ Joiner
     }
 
-    // Khi Joiner nhận được Config từ Host
     public void onConfigReceived(GameConfigPacket p) {
         if (!isServer) {
             this.isMultiplayer = true;
             // Joiner lấy màu ngược với Host
             this.playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
-
             netManager.sendConfig(new GameConfigPacket(this.playerColor, this.myName));
         }
 
-        // Nếu đang ở màn hình Lobby, hãy cập nhật thông tin đối thủ
+        // ĐỒNG BỘ: Reset lại toàn bộ quân cờ để đảm bảo màu sắc đồng nhất trên cả 2 máy
+        setPieces();
+        copyPieces(pieces, simPieces);
+        currentColor = WHITE; // Mọi ván đấu luôn bắt đầu bằng quân Trắng
+
         JPanel currentPanel = (JPanel) window.getContentPane().getComponent(0);
         if (currentPanel instanceof LobbyPanel) {
             LobbyPanel lp = (LobbyPanel) currentPanel;
             lp.setOpponent(new PlayerProfile(p.playerName, p.hostColor, ""));
 
-            // Đợi 2 giây để người chơi nhìn thấy màn hình "VS" rồi mới vào trận
             Timer lobbyTimer = new Timer(2000, e -> {
-                startNewGame();
-                this.isTimeRunning = true;
+                // Không gọi startNewGame() vì sẽ làm loạn trạng thái vừa đồng bộ
+                gamePanel = new GamePanel(this);
+                showPanel(gamePanel);
+                audioManager.playBGM(GAME_BGM);
+                GameState.currentState = State.PLAYING;
+                this.isTimeRunning = true; // Kích hoạt đồng hồ sau khi vào trận
             });
             lobbyTimer.setRepeats(false);
             lobbyTimer.start();
-        } else {
-            // Nếu không dùng LobbyPanel, vào thẳng game (Sửa lỗi crash closeWaitingDialog)
-            startNewGame();
-            this.isTimeRunning = true;
         }
     }
 }
