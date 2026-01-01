@@ -71,25 +71,24 @@ public class LobbyPanel extends JPanel {
         });
     }
 
-    // GỌI HÀM NÀY TỪ CONTROLLER KHI NHẬN ĐƯỢC CONFIG CỦA ĐỐI THỦ
+    // Sửa hàm setOpponent trong LobbyPanel.java (PC)
     public void setOpponent(PlayerProfile opp) {
+        if (opp == null || opp.name == null) return; // CHẶN LỖI NULL TẠI ĐÂY
+
         this.opponentInfo = opp;
         this.isOpponentConnected = true;
 
         SwingUtilities.invokeLater(() -> {
+            String oppName = opp.name.toUpperCase(); // Bây giờ chắc chắn không null
             if (controller.isServer) {
-                // NẾU LÀ HOST: Bật nút START lên
-                lblStatus.setText("OPPONENT FOUND: " + opp.name.toUpperCase());
+                lblStatus.setText("OPPONENT FOUND: " + oppName);
                 lblStatus.setForeground(new Color(46, 204, 113));
-
                 btnAction.setText("START GAME");
-                btnAction.setBackground(new Color(46, 204, 113)); // Màu xanh lá
+                btnAction.setBackground(new Color(46, 204, 113));
                 btnAction.setEnabled(true);
             } else {
-                // NẾU LÀ JOINER: Vẫn giữ nút CANCEL, chỉ cập nhật tên Host
-                lblStatus.setText("CONNECTED TO " + opp.name.toUpperCase() + ". WAITING...");
-                lblStatus.setForeground(new Color(52, 152, 219)); // Màu xanh dương
-
+                lblStatus.setText("CONNECTED TO " + oppName + ". WAITING...");
+                lblStatus.setForeground(new Color(52, 152, 219));
                 btnAction.setText("CANCEL");
                 btnAction.setBackground(new Color(200, 50, 50));
                 btnAction.setEnabled(true);
@@ -106,6 +105,13 @@ public class LobbyPanel extends JPanel {
             btnAction.setBackground(new Color(46, 204, 113));
             lblStatus.setText("PREPARING BOARD...");
         });
+        // 2. Dùng Timer cực ngắn (100ms) để luồng UI có thời gian vẽ cái nút
+        // Sau đó mới gọi startNewGame
+        Timer t = new Timer(100, e -> {
+            controller.startNewGame();
+        });
+        t.setRepeats(false);
+        t.start();
     }
 
     @Override

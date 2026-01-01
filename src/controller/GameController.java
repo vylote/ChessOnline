@@ -168,8 +168,11 @@ public class GameController implements Runnable {
         if (isServer && isMultiplayer && netManager != null) {
             // Gửi lệnh -2 để máy Android (Joiner) cũng vào game
             netManager.sendMove(new MovePacket(-2, -2, -2, -2, -1));
-            // Bản thân Host vào game
-            startNewGame();
+            // 2. Gọi hiệu ứng trên chính máy Host PC
+            JPanel current = (JPanel) window.getContentPane().getComponent(0);
+            if (current instanceof LobbyPanel) {
+                ((LobbyPanel) current).startSyncDelay();
+            }
         }
     }
 
@@ -187,29 +190,26 @@ public class GameController implements Runnable {
             showPanel(lp);
         });
     }
-
+    // Sửa lại hàm này trong GameController.java (PC)
     public void onConfigReceived(GameConfigPacket p) {
-        this.opponentProfile = new PlayerProfile(p.playerName, p.hostColor, "");
+        // 1. Tạo profile cục bộ ngay lập tức để tránh tranh chấp dữ liệu
+        final PlayerProfile profile = new PlayerProfile(p.playerName, p.hostColor, "");
+        this.opponentProfile = profile;
 
         if (!isServer) {
-            // NẾU LÀ JOINER (PC): Nhận cấu hình từ Android Host
             this.playerColor = (p.hostColor == WHITE) ? BLACK : WHITE;
             netManager.sendConfig(new GameConfigPacket(this.playerColor, this.myName));
 
             SwingUtilities.invokeLater(() -> {
                 LobbyPanel lp = new LobbyPanel(this, myName, playerColor);
-                // Hàm setOpponent này sẽ tự động thiết lập trạng thái "WAITING FOR HOST" cho Joiner
-                lp.setOpponent(opponentProfile);
+                lp.setOpponent(profile); // Dùng biến profile cục bộ ở trên
                 showPanel(lp);
             });
         } else {
-            // NẾU LÀ HOST (PC): Nhận cấu hình từ Android Joiner gửi trả về
             SwingUtilities.invokeLater(() -> {
                 JPanel current = (JPanel) window.getContentPane().getComponent(0);
                 if (current instanceof LobbyPanel) {
-                    LobbyPanel lp = (LobbyPanel) current;
-                    // CHỈ CẦN DÒNG NÀY: Nó sẽ tự đổi nút thành "START GAME" và màu xanh lá
-                    lp.setOpponent(opponentProfile);
+                    ((LobbyPanel) current).setOpponent(profile);
                 }
             });
         }
