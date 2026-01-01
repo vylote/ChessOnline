@@ -7,7 +7,7 @@ public class AudioManager {
     private Clip bgmClip;
     private String currentPath = "";
 
-    private float bgmVolume = 0.03f;
+    private float bgmVolume = 0.01f;
     private float sfxVolume = 1f;
 
     // --- QUẢN LÝ BGM ---
