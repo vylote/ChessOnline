@@ -26,12 +26,10 @@ public class NetworkManager {
                 socket.setTcpNoDelay(true);
                 setupStreams();
 
-                // Gửi cấu hình cho Joiner
-                sendConfig(new GameConfigPacket(controller.playerColor, controller.getMyName()));
-
+                // SỬA Ở ĐÂY: Không startNewGame ở đây nữa.
+                // Gọi callback để Controller hiện màn hình Lobby và gửi Config
                 SwingUtilities.invokeLater(() -> {
-                    controller.startNewGame();
-                    controller.isTimeRunning = true;
+                    controller.onOpponentConnected();
                 });
 
                 listenForData();
@@ -47,6 +45,12 @@ public class NetworkManager {
                 socket = new Socket(ip, port);
                 socket.setTcpNoDelay(true);
                 setupStreams();
+
+                // SỬA Ở ĐÂY: Báo cho Controller biết đã kết nối thành công để hiện Lobby
+                SwingUtilities.invokeLater(() -> {
+                    controller.onOpponentConnected();
+                });
+
                 listenForData();
             } catch (IOException e) {
                 System.err.println("Không thể kết nối: " + e.getMessage());
@@ -61,6 +65,7 @@ public class NetworkManager {
     }
 
     public void sendMove(MovePacket packet) {
+        // Chạy trên thread mới để không làm lag UI khi mạng chậm
         new Thread(() -> {
             try {
                 if (out != null) {
@@ -69,7 +74,7 @@ public class NetworkManager {
                     out.reset();
                 }
             } catch (IOException e) {
-                System.err.println("Lỗi gửi nước đi: " + e.getMessage());
+                System.err.println("Lỗi gửi gói tin: " + e.getMessage());
             }
         }).start();
     }
@@ -91,7 +96,7 @@ public class NetworkManager {
             while (socket != null && !socket.isClosed()) {
                 Object data = in.readObject();
 
-                // SỬA LỖI QUAN TRỌNG: Mọi thay đổi logic từ Network phải chạy trên luồng UI
+                // Đảm bảo cập nhật UI trên luồng chính của Swing
                 SwingUtilities.invokeLater(() -> {
                     if (data instanceof MovePacket) {
                         controller.receiveNetworkMove((MovePacket) data);
@@ -101,6 +106,7 @@ public class NetworkManager {
                 });
             }
         } catch (Exception e) {
+            // Khi mất kết nối hoặc lỗi, thoát về menu
             SwingUtilities.invokeLater(() -> controller.exitToMenu());
         } finally {
             closeConnection();

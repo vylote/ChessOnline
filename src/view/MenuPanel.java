@@ -101,7 +101,7 @@ public class MenuPanel extends JPanel {
             if (!prof.confirmed) return;
 
             // 2. Thiết lập Lobby và Server
-            LobbyPanel lobby = new LobbyPanel(prof.pName, prof.pColor);
+            LobbyPanel lobby = new LobbyPanel(controller,prof.pName, prof.pColor);
             switchToPanel(lobby);
 
             DiscoveryService ds = new DiscoveryService();
@@ -121,7 +121,7 @@ public class MenuPanel extends JPanel {
                 if (!prof.confirmed) return;
 
                 // 3. Vào Lobby
-                LobbyPanel lobby = new LobbyPanel(prof.pName, prof.pColor);
+                LobbyPanel lobby = new LobbyPanel(controller,prof.pName, prof.pColor);
                 lobby.setOpponent(inv.selectedHost);
                 switchToPanel(lobby);
 
