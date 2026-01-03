@@ -1,6 +1,7 @@
 package controller;
 
 import model.PlayerProfile;
+
 import java.net.*;
 import java.util.*;
 import java.util.function.Consumer;
@@ -40,7 +41,9 @@ public class DiscoveryService {
                     }
                     Thread.sleep(2000); // 2 giây phát lại 1 lần
                 }
-            } catch (Exception e) { if(running) e.printStackTrace(); }
+            } catch (Exception e) {
+                if (running) e.printStackTrace();
+            }
         }).start();
     }
 
@@ -60,11 +63,16 @@ public class DiscoveryService {
                             String[] parts = data.split(":");
                             onFound.accept(new PlayerProfile(parts[1], Integer.parseInt(parts[2]), p.getAddress().getHostAddress()));
                         }
-                    } catch (SocketTimeoutException ignored) {}
+                    } catch (SocketTimeoutException ignored) {
+                    }
                 }
-            } catch (Exception e) { if(running) e.printStackTrace(); }
+            } catch (Exception e) {
+                if (running) e.printStackTrace();
+            }
         }).start();
     }
 
-    public void stop() { running = false; }
+    public void stop() {
+        running = false;
+    }
 }
