@@ -13,5 +13,6 @@
 2.How to play
 
 &emsp;&emsp;In PC/Android 1, Multiplayer ➔ Host Game ➔ set name and choose color
+
 &emsp;&emsp;In the other, Multiplayer ➔ Join Game ➔ choose the room with IP’s PC/Android 1  
 *Hope u enjoy it!*
