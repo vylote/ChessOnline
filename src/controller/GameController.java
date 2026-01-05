@@ -349,14 +349,17 @@ public class GameController implements Runnable {
     // =========================================================
     public void finalizeTurn() {
         copyPieces(simPieces, pieces);
-        for (Piece p : pieces) p.updatePosition();
+        pieces.forEach(Piece::updatePosition);
         isClickedToMove = false;
         activeP = null;
         validMoves.clear();
         castlingP = null;
         promotion = false;
         currentColor = (currentColor == WHITE) ? BLACK : WHITE;
-        for (Piece p : pieces) if (p.color == currentColor) p.twoStepped = false;
+        // Reset trạng thái vọt 2 ô của quân Tốt
+        pieces.stream()
+                .filter(p -> p.color == currentColor)
+                .forEach(p -> p.twoStepped = false);
         resetTime();
     }
 
@@ -383,8 +386,10 @@ public class GameController implements Runnable {
     }
 
     public boolean isInsufficientMaterial() {
-        for (Piece p : simPieces) if (p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN) return false;
-        return simPieces.size() <= 3;
+        boolean hasMajorPieces = simPieces.stream()
+                .anyMatch(p -> p.type == Type.PAWN || p.type == Type.ROOK || p.type == Type.QUEEN);
+
+        return !hasMajorPieces && simPieces.size() <= 3;
     }
 
     public boolean canPromote() {
@@ -596,14 +601,16 @@ public class GameController implements Runnable {
     private boolean opponentsCanCaptureKing() {
         Piece king = getKing(false);
         if (king == null) return false;
-        for (Piece p : simPieces) if (p.color != king.color && p.canMove(king.col, king.row)) return true;
-        return false;
+        return simPieces.stream()
+                .anyMatch(p -> p.color != king.color && p.canMove(king.col, king.row));
     }
 
     public Piece getKing(boolean opp) {
         int c = opp ? (currentColor == WHITE ? BLACK : WHITE) : currentColor;
-        for (Piece p : simPieces) if (p.type == Type.KING && p.color == c) return p;
-        return null;
+        return simPieces.stream()
+                .filter(p -> p.type == Type.KING && p.color == c)
+                .findFirst()
+                .orElse(null);
     }
 
     public void simulateClickToMove(int tc, int tr) {
@@ -756,6 +763,15 @@ public class GameController implements Runnable {
                 isClickedToMove = true;
                 break;
             }
+
+        simPieces.stream()
+                .filter(p -> p.color == currentColor && p.col == c && p.row == r)
+                .findFirst()
+                .ifPresent(p -> {
+                    activeP = p;
+                    calculateValidMoves(activeP);
+                    isClickedToMove = true;
+                });
     }
 
     private BufferedImage reloadPieceImage(Piece p) {
@@ -767,10 +783,10 @@ public class GameController implements Runnable {
     private void setPieces() {
         pieces.clear();
         ChessSetupUtility.setupStandardGame(pieces);
-        for (Piece p : pieces) {
+        pieces.forEach(p -> {
             p.image = reloadPieceImage(p);
             p.updatePosition();
-        }
+        });
     }
 
     public void copyPieces(CopyOnWriteArrayList<Piece> s, CopyOnWriteArrayList<Piece> t) {
