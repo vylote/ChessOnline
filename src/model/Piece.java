@@ -75,12 +75,10 @@ public abstract class Piece implements Serializable {
 
     // return to a piece was hit by "this"
     public Piece gettingHitP(int targetCol, int targetRow) {
-        for (Piece piece : GameController.simPieces) {
-            if (piece.col == targetCol && piece.row == targetRow && piece != this) {
-                return piece;
-            }
-        }
-        return null;
+        return GameController.simPieces.stream()
+                .filter(p -> p.col == targetCol && p.row == targetRow && p != this)
+                .findFirst()
+                .orElse(null);
     }
 
     public boolean isValidSquare(int targetCol, int targetRow) {
@@ -103,91 +101,58 @@ public abstract class Piece implements Serializable {
 
     public boolean pieceIsOnStraightline(int targetCol, int targetRow) {
         //move to the left
-        for (int c = preCol-1; c > targetCol; c--) {
-            for (Piece piece : GameController.simPieces) {
-                if (piece.row == targetRow && piece.col == c) {
-                    hittingP = piece;
-                    return true;
-                }
-            }
+        if (preRow == targetRow && preCol > targetCol) {
+            return GameController.simPieces.stream()
+                    .anyMatch(p -> p.row == targetRow && p.col < preCol && p.col > targetCol);
         }
         //move to the right
-        for (int c = preCol+1; c < targetCol; c++) {
-            for (Piece piece : GameController.simPieces) {
-                if (piece.row == targetRow && piece.col == c) {
-                    hittingP = piece;
-                    return true;
-                }
-            }
+        if (preRow == targetRow && preCol < targetCol) {
+            return GameController.simPieces.stream()
+                    .anyMatch(p -> p.row == targetRow && p.col > preCol && p.col < targetCol);
         }
         //move up
-        for (int r = preRow-1; r > targetRow; r--) {
-            for (Piece piece : GameController.simPieces) {
-                if (piece.col == targetCol && piece.row == r) {
-                    hittingP = piece;
-                    return true;
-                }
-            }
+        if (preCol == targetCol && preRow > targetRow) {
+            return GameController.simPieces.stream()
+                    .anyMatch(p -> p.col == targetCol && p.row < preRow && p.row > targetRow);
         }
         //move down
-        for (int r = preRow+1; r < targetRow; r++) {
-            for (Piece piece : GameController.simPieces) {
-                if (piece.col == targetCol && piece.row == r) {
-                    hittingP = piece;
-                    return true;
-                }
-            }
+        if (preCol == targetCol && preRow < targetRow) {
+            return GameController.simPieces.stream()
+                    .anyMatch(p -> p.col == targetCol && p.row > preRow && p.row < targetRow);
         }
         return false;
     }
 
     public boolean pieceIsOnDiagonalLine(int targetCol, int targetRow) {
-        int diff;
-        if (targetRow < preRow) {
-            //up left
-            for (int c = preCol-1; c > targetCol; c--) {
-                diff = Math.abs(c-preCol);
-                for (Piece piece : GameController.simPieces) {
-                    if (piece.row == preRow-diff && piece.col == c) {
-                        hittingP = piece;
-                        return true;
-                    }
-                }
-            }
-            //up right
-            for (int c = preCol+1; c < targetCol; c++) {
-                diff = Math.abs(c-preCol);
-                for (Piece piece : GameController.simPieces) {
-                    if (piece.row == preRow-diff && piece.col == c) {
-                        hittingP = piece;
-                        return true;
-                    }
-                }
-            }
+        return GameController.simPieces.stream()
+                .filter(p -> p != this) // 1. Loại bỏ chính quân cờ đang xét
+                .filter(p -> Math.abs(p.col - preCol) == Math.abs(p.row - preRow)) // 2. Kiểm tra p có nằm trên đường chéo không
+                .anyMatch(p -> {
+                    // 3. Kiểm tra xem p có nằm TRONG phạm vi từ vị trí cũ đến vị trí đích không
+                    boolean withinCol = (preCol < targetCol) ? (p.col > preCol && p.col < targetCol)
+                            : (p.col < preCol && p.col > targetCol);
+                    boolean withinRow = (preRow < targetRow) ? (p.row > preRow && p.row < targetRow)
+                            : (p.row < preRow && p.row > targetRow);
 
-        }
-        if (targetRow > preRow) {
-            //down left
-            for (int c = preCol-1; c > targetCol; c--) {
-                diff = Math.abs(c-preCol);
-                for (Piece piece : GameController.simPieces) {
-                    if (piece.row == preRow+diff && piece.col == c) {
-                        hittingP = piece;
+                    if (withinCol && withinRow) {
+                        hittingP = p; // Gán quân cờ cản đường để xử lý logic va chạm
                         return true;
                     }
-                }
-            }
-            //down right
-            for (int c = preCol+1; c < targetCol; c++) {
-                diff = Math.abs(c-preCol);
-                for (Piece piece : GameController.simPieces) {
-                    if (piece.row == preRow+diff && piece.col == c) {
-                        hittingP = piece;
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+                    return false;
+                });
+    }
+
+    public char getFENChar() {
+        char fenChar = switch (type) {
+            case PAWN -> 'p';
+            case ROOK -> 'r';
+            case KNIGHT -> 'n';
+            case BISHOP -> 'b';
+            case QUEEN -> 'q';
+            case KING -> 'k';
+        };
+
+        // Nếu là quân Trắng (WHITE = 0), chuyển thành chữ HOA
+        return (color == GameController.WHITE) ? Character.toUpperCase(fenChar) : fenChar;
     }
 }

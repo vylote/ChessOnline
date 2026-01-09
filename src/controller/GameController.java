@@ -11,6 +11,7 @@ import javax.swing.Timer;
 
 import model.*;
 import utility.AudioManager;
+import utility.StockfishClient;
 import view.*;
 
 public class GameController implements Runnable {
@@ -44,6 +45,7 @@ public class GameController implements Runnable {
     private float toastAlpha = 0;
     private int timeLeft = 20;
     private long lastSecond = System.currentTimeMillis();
+    private boolean isAiThinking = false;
 
     // --- 4. FIELDS: MULTIPLAYER ---
     public boolean isMultiplayer = false;
@@ -53,8 +55,20 @@ public class GameController implements Runnable {
     private String myName = "PC Player";
     private PlayerProfile opponentProfile;
 
+    private StockfishClient sfClient;
+
     public GameController() {
         this.audioManager = new AudioManager();
+        this.sfClient = new StockfishClient(); // Khởi tạo Client
+        // Chỉ dùng 1 đường dẫn chuẩn nhất
+        String path = "engines/stockfish.exe";
+        boolean success = this.sfClient.startEngine(path);
+
+        if (!success) {
+            System.err.println("AI không thể khởi động!");
+        }
+        // Đường dẫn file exe bạn đã tải
+        this.sfClient.startEngine("engines/stockfish.exe");
         this.window = new MainFrame();
         this.window.getContentPane().setBackground(Color.BLACK);
         this.menuPanel = new MenuPanel(this, window);
@@ -210,6 +224,92 @@ public class GameController implements Runnable {
         window.repaint();
     }
 
+    public void makeAiMove(String uciMove) {
+        if (uciMove == null || uciMove.length() < 4) {
+            isAiThinking = false;
+            return;
+        }
+
+        int startCol = uciMove.charAt(0) - 'a';
+        int startRow = 8 - Character.getNumericValue(uciMove.charAt(1));
+        int targetCol = uciMove.charAt(2) - 'a';
+        int targetRow = 8 - Character.getNumericValue(uciMove.charAt(3));
+
+        activeP = getPieceAt(startCol, startRow);
+
+        if (activeP != null) {
+            boolean isCapture = (activeP.gettingHitP(targetCol, targetRow) != null);
+            simulateClickToMove(targetCol, targetRow);
+
+            if (uciMove.length() == 5) {
+                char promo = uciMove.charAt(4);
+                int type = (promo == 'r') ? 1 : (promo == 'n') ? 2 : (promo == 'b') ? 3 : 0;
+                replacePawnAndFinishNetwork(type);
+            } else {
+                activeP.finishMove();
+            }
+
+            playMoveSound(isCapture, castlingP != null);
+
+            // GIẢI PHÓNG TRẠNG THÁI TRƯỚC KHI ĐỔI LƯỢT
+            isAiThinking = false;
+
+            // Hàm này sẽ tự gọi finalizeTurn() bên trong nó
+            checkGameEndConditions();
+
+            // TUYỆT ĐỐI KHÔNG GỌI finalizeTurn() Ở ĐÂY NỮA
+        } else {
+            isAiThinking = false;
+            System.err.println("AI Error: Start square empty " + uciMove);
+        }
+    }
+
+    public Piece getPieceAt(int col, int row) {
+        return simPieces.stream()
+                .filter(p -> p.col == col && p.row == row)
+                .findFirst()
+                .orElse(null);
+    }
+
+    public String getFEN() {
+        StringBuilder fen = new StringBuilder();
+
+        // 1. Piece placement: Duyệt từ hàng 0 (tương ứng hàng 8 của bàn cờ) đến hàng 7
+        for (int r = 0; r < 8; r++) {
+            int emptySquares = 0;
+            for (int c = 0; c < 8; c++) {
+                Piece p = getPieceAt(c, r); // Gọi hàm tìm quân cờ tại tọa độ (đã viết bằng Stream)
+
+                if (p == null) {
+                    emptySquares++;
+                } else {
+                    if (emptySquares > 0) {
+                        fen.append(emptySquares);
+                        emptySquares = 0;
+                    }
+                    fen.append(p.getFENChar()); // Gọi hàm lấy ký hiệu quân cờ
+                }
+            }
+            if (emptySquares > 0) fen.append(emptySquares);
+            if (r < 7) fen.append("/"); // Ngăn cách giữa các hàng
+        }
+
+        // 2. Active color: Lượt đi hiện tại ('w' hoặc 'b')
+        fen.append(currentColor == WHITE ? " w " : " b ");
+
+        // 3. Castling availability: Quyền nhập thành (Tạm thời để KQkq nếu còn đủ Xe/Vua)
+        // Lưu ý: Để chuyên nghiệp hơn, bạn nên kiểm tra biến 'moved' của Vua và Xe
+        fen.append("KQkq ");
+
+        // 4. En passant target square: Ô có thể bắt quân qua đường (Tạm để '-' nếu chưa làm logic này)
+        fen.append("- ");
+
+        // 5. Halfmove clock & Fullmove number: Các chỉ số phụ cho luật hòa 50 nước
+        fen.append("0 1");
+
+        return fen.toString();
+    }
+
     // =========================================================
     // NHÓM 3: MULTIPLAYER & SYNC (SỬA LỖI TẠI ĐÂY)
     // =========================================================
@@ -361,6 +461,25 @@ public class GameController implements Runnable {
                 .filter(p -> p.color == currentColor)
                 .forEach(p -> p.twoStepped = false);
         resetTime();
+
+        // KÍCH HOẠT AI CHẾ ĐỘ OFFLINE
+        if (!isMultiplayer && currentColor == BLACK && !gameOver && !isAiThinking) {
+            isAiThinking = true; // Khóa lại, không cho phép kích hoạt thêm luồng AI nào khác
+
+            new Thread(() -> {
+                try {
+                    String fen = getFEN(); // Lấy FEN chuẩn
+                    // Yêu cầu AI tính toán nước đi tốt nhất
+                    String bestMove = sfClient.getBestMove(fen, 1000);
+
+                    if (bestMove != null) {
+                        SwingUtilities.invokeLater(() -> makeAiMove(bestMove));
+                    }
+                } finally {
+                    // Đảm bảo dù có lỗi hay không, cờ sẽ được hạ xuống ở makeAiMove hoặc tại đây
+                }
+            }).start();
+        }
     }
 
     public boolean isKingInCheck() {
