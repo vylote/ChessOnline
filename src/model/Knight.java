@@ -1,6 +1,6 @@
 package model;
 
-import controller.GameController;
+import controller.core.GameController;
 
 public class Knight extends Piece {
 

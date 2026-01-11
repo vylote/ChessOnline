@@ -1,4 +1,6 @@
 package controller;
+import controller.core.GameController;
+
 import javax.swing.SwingUtilities;
 
 public class Main {

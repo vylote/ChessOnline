@@ -5,7 +5,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.Serializable;
 import javax.imageio.ImageIO;
-import controller.GameController;
+import controller.core.GameController;
 
 public abstract class Piece implements Serializable {
     private static final long serialVersionUID = 1L;

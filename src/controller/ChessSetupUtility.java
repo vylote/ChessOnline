@@ -1,8 +1,9 @@
 package controller;
 
+import controller.core.GameController;
 import model.*;
 import java.util.List; // Sử dụng Interface List để linh hoạt hơn
-import java.util.concurrent.CopyOnWriteArrayList;
+
 
 public class ChessSetupUtility {
 

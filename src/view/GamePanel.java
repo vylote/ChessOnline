@@ -5,7 +5,7 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import javax.swing.*;
-import controller.GameController;
+import controller.core.GameController;
 import controller.Mouse;
 import model.*;
 

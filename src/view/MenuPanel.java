@@ -1,8 +1,8 @@
 package view;
 
-import controller.GameController;
+import controller.core.GameController;
 import controller.DiscoveryService;
-import model.PlayerProfile;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;

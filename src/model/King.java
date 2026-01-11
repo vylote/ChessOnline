@@ -1,6 +1,6 @@
 package model;
 
-import controller.GameController;
+import controller.core.GameController;
 
 public class King extends Piece {
     public King(int color, int row, int col) {

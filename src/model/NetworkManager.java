@@ -3,7 +3,7 @@ package model;
 import java.io.*;
 import java.net.*;
 import javax.swing.SwingUtilities;
-import controller.GameController;
+import controller.core.GameController;
 
 public class NetworkManager {
     private GameController controller;
