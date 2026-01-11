@@ -4,9 +4,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.Serializable;
-
 import javax.imageio.ImageIO;
-
 import controller.GameController;
 
 public abstract class Piece implements Serializable {
@@ -14,8 +12,7 @@ public abstract class Piece implements Serializable {
 
     public Type type;
     public transient BufferedImage image;
-    public int x, y;
-    public int row, col, preRow, preCol;
+    public int x, y, row, col, preRow, preCol;
     public int color;
     public Piece hittingP;
     public boolean moved, twoStepped;
@@ -24,31 +21,25 @@ public abstract class Piece implements Serializable {
         this.color = color;
         this.row = row;
         this.col = col;
-        x = getX(col);
-        y = getY(row);
+        updatePosition();
         preRow = row;
         preCol = col;
     }
+
+    public abstract boolean canMove(int targetCol, int targetRow);
 
     public void draw(Graphics2D g2) {
         g2.drawImage(image, x, y, Board.SQUARE_SIZE, Board.SQUARE_SIZE, null);
     }
 
     public BufferedImage getImage(String path) {
-
-        BufferedImage image = null;
-
         try {
-            image = ImageIO.read(getClass().getResourceAsStream(path+".png"));
+            return ImageIO.read(getClass().getResourceAsStream(path + ".png"));
         } catch (IOException e) {
             e.printStackTrace();
+            return null;
         }
-
-        return image;
     }
-
-    public int getX(int col) { return col*Board.SQUARE_SIZE; }
-    public int getY(int row) { return row*Board.SQUARE_SIZE; }
 
     public void updatePosition() {
         this.x = col * Board.SQUARE_SIZE;
@@ -56,42 +47,29 @@ public abstract class Piece implements Serializable {
     }
 
     public void finishMove() {
-        updatePosition(); // Cập nhật x, y ngay lập tức cho Render
-        if (type == Type.PAWN && Math.abs(preRow - row) == 2) {
-            twoStepped = true;
-        }
+        updatePosition();
+        if (type == Type.PAWN && Math.abs(preRow - row) == 2) twoStepped = true;
         preCol = col;
         preRow = row;
         moved = true;
-    }
-
-    public boolean canMove(int targetCol, int targetRow) {
-        return false;
     }
 
     public boolean isWithinBoard(int targetCol, int targetRow) {
         return targetCol >= 0 && targetCol <= 7 && targetRow >= 0 && targetRow <= 7;
     }
 
-    // return to a piece was hit by "this"
     public Piece gettingHitP(int targetCol, int targetRow) {
         return GameController.simPieces.stream()
                 .filter(p -> p.col == targetCol && p.row == targetRow && p != this)
-                .findFirst()
-                .orElse(null);
+                .findFirst().orElse(null);
     }
 
     public boolean isValidSquare(int targetCol, int targetRow) {
         hittingP = gettingHitP(targetCol, targetRow);
-        if (hittingP == null) {
-            return true;
-        } else {
-            if (hittingP.color != this.color) {
-                return true;
-            } else {
-                hittingP = null;
-            }
-        }
+        if (hittingP == null) return true;
+        // KHÔNG cho phép ăn Vua và không ăn quân cùng màu
+        if (hittingP.color != this.color && hittingP.type != Type.KING) return true;
+        hittingP = null;
         return false;
     }
 
@@ -100,59 +78,32 @@ public abstract class Piece implements Serializable {
     }
 
     public boolean pieceIsOnStraightline(int targetCol, int targetRow) {
-        //move to the left
-        if (preRow == targetRow && preCol > targetCol) {
-            return GameController.simPieces.stream()
-                    .anyMatch(p -> p.row == targetRow && p.col < preCol && p.col > targetCol);
-        }
-        //move to the right
-        if (preRow == targetRow && preCol < targetCol) {
-            return GameController.simPieces.stream()
-                    .anyMatch(p -> p.row == targetRow && p.col > preCol && p.col < targetCol);
-        }
-        //move up
-        if (preCol == targetCol && preRow > targetRow) {
-            return GameController.simPieces.stream()
-                    .anyMatch(p -> p.col == targetCol && p.row < preRow && p.row > targetRow);
-        }
-        //move down
-        if (preCol == targetCol && preRow < targetRow) {
-            return GameController.simPieces.stream()
-                    .anyMatch(p -> p.col == targetCol && p.row > preRow && p.row < targetRow);
-        }
+        if (preRow == targetRow && preCol > targetCol) // Left
+            return GameController.simPieces.stream().anyMatch(p -> p.row == targetRow && p.col < preCol && p.col > targetCol);
+        if (preRow == targetRow && preCol < targetCol) // Right
+            return GameController.simPieces.stream().anyMatch(p -> p.row == targetRow && p.col > preCol && p.col < targetCol);
+        if (preCol == targetCol && preRow > targetRow) // Up
+            return GameController.simPieces.stream().anyMatch(p -> p.col == targetCol && p.row < preRow && p.row > targetRow);
+        if (preCol == targetCol && preRow < targetRow) // Down
+            return GameController.simPieces.stream().anyMatch(p -> p.col == targetCol && p.row > preRow && p.row < targetRow);
         return false;
     }
 
     public boolean pieceIsOnDiagonalLine(int targetCol, int targetRow) {
         return GameController.simPieces.stream()
-                .filter(p -> p != this) // 1. Loại bỏ chính quân cờ đang xét
-                .filter(p -> Math.abs(p.col - preCol) == Math.abs(p.row - preRow)) // 2. Kiểm tra p có nằm trên đường chéo không
+                .filter(p -> p != this && Math.abs(p.col - preCol) == Math.abs(p.row - preRow))
                 .anyMatch(p -> {
-                    // 3. Kiểm tra xem p có nằm TRONG phạm vi từ vị trí cũ đến vị trí đích không
-                    boolean withinCol = (preCol < targetCol) ? (p.col > preCol && p.col < targetCol)
-                            : (p.col < preCol && p.col > targetCol);
-                    boolean withinRow = (preRow < targetRow) ? (p.row > preRow && p.row < targetRow)
-                            : (p.row < preRow && p.row > targetRow);
-
-                    if (withinCol && withinRow) {
-                        hittingP = p; // Gán quân cờ cản đường để xử lý logic va chạm
-                        return true;
-                    }
-                    return false;
+                    boolean withinCol = (preCol < targetCol) ? (p.col > preCol && p.col < targetCol) : (p.col < preCol && p.col > targetCol);
+                    boolean withinRow = (preRow < targetRow) ? (p.row > preRow && p.row < targetRow) : (p.row < preRow && p.row > targetRow);
+                    return withinCol && withinRow;
                 });
     }
 
     public char getFENChar() {
-        char fenChar = switch (type) {
-            case PAWN -> 'p';
-            case ROOK -> 'r';
-            case KNIGHT -> 'n';
-            case BISHOP -> 'b';
-            case QUEEN -> 'q';
-            case KING -> 'k';
+        char c = switch (type) {
+            case PAWN -> 'p'; case ROOK -> 'r'; case KNIGHT -> 'n';
+            case BISHOP -> 'b'; case QUEEN -> 'q'; case KING -> 'k';
         };
-
-        // Nếu là quân Trắng (WHITE = 0), chuyển thành chữ HOA
-        return (color == GameController.WHITE) ? Character.toUpperCase(fenChar) : fenChar;
+        return (color == GameController.WHITE) ? Character.toUpperCase(c) : c;
     }
 }
