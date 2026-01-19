@@ -1,6 +1,6 @@
 package view;
 
-import controller.DiscoveryService;
+import controller.service.DiscoveryService;
 import model.PlayerProfile;
 import javax.swing.*;
 import java.awt.*;

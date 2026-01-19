@@ -2,27 +2,42 @@ package controller.integration;
 
 import controller.core.GameController;
 import utility.StockfishClient;
-
-import javax.swing.*;
+import javax.swing.SwingUtilities;
 
 public class StockfishHandler {
     private final StockfishClient client;
     private final GameController gc;
+    private final String enginePath = "engines/stockfish.exe";
 
     public StockfishHandler(GameController gc) {
         this.gc = gc;
         this.client = new StockfishClient();
-        this.client.startEngine("engines/stockfish.exe");
+        restartEngine();
+    }
+
+    private void restartEngine() {
+        client.startEngine(enginePath);
     }
 
     public void startThinking(String fen) {
         new Thread(() -> {
+            String move = null;
             try {
-                String move = client.getBestMove(fen, 1000);
-                if (move != null) SwingUtilities.invokeLater(() -> gc.makeAiMove(move));
+                // Giảm movetime xuống 500ms để AI phản hồi nhanh hơn, tránh lag luồng
+                move = client.getBestMove(fen, 500);
             } catch (Exception e) {
-                // Tự động khởi động lại nếu Pipe bị đóng
-                client.startEngine("engines/stockfish.exe");
+                System.err.println("Lỗi Stockfish: " + e.getMessage());
+            } finally {
+                final String finalMove = move;
+                SwingUtilities.invokeLater(() -> {
+                    if (finalMove != null) {
+                        gc.makeAiMove(finalMove);
+                    } else {
+                        // NẾU AI LỖI: Buộc phải mở khóa để người chơi đi tiếp
+                        gc.isAiThinking = false;
+                        gc.validMoves.clear();
+                    }
+                });
             }
         }).start();
     }

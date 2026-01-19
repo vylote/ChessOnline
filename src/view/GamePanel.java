@@ -181,14 +181,8 @@ public class GamePanel extends JPanel {
     }
 
     private void drawToast(Graphics2D g2) {
-        String msg;
-        if (controller.isKingInCheck() && !controller.isGameOver()) {
-            msg = "CHECK!";
-        } else if (controller.isMultiplayer && controller.getCurrentColor() != controller.playerColor) {
-            msg = "OPPONENT'S TURN"; // Báo hiệu cho Joiner biết tại sao không click được
-        } else {
-            msg = "Cannot pause in Multiplayer!";
-        }
+        String msg = controller.toastMsg; // Lấy tin nhắn trực tiếp từ Controller
+        if (msg.isEmpty()) return;
 
         g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
         FontMetrics fm = g2.getFontMetrics();
@@ -207,11 +201,15 @@ public class GamePanel extends JPanel {
         int size = Board.SQUARE_SIZE;
 
         if (controller.getCheckingP() != null) {
-            Piece king = controller.getKing(false);
+            // Phe bị chiếu là đối thủ của quân đang gây chiếu (checkingP)
+            int colorInCheck = (controller.getCheckingP().color == GameController.WHITE) ? GameController.BLACK : GameController.WHITE;
+            Piece king = controller.getKingByColor(colorInCheck);
+
             if (king != null) {
-                g2.setColor(new Color(255, 0, 0, 150));
-                g2.fillRect(controller.getDisplayCol(king.col) * size,
-                        controller.getDisplayRow(king.row) * size, size, size);
+                g2.setColor(new Color(255, 0, 0, 180)); // Màu đỏ đậm rực rỡ
+                g2.fillRect(controller.getDisplayCol(king.col) * Board.SQUARE_SIZE,
+                        controller.getDisplayRow(king.row) * Board.SQUARE_SIZE,
+                        Board.SQUARE_SIZE, Board.SQUARE_SIZE);
             }
         }
 

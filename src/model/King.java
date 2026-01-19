@@ -12,24 +12,33 @@ public class King extends Piece {
     public boolean canMove(int targetCol, int targetRow) {
         if (!isWithinBoard(targetCol, targetRow) || isSameSquare(targetCol, targetRow)) return false;
 
-        // Di chuyển 1 ô thông thường
-        if (Math.abs(targetRow - preRow) <= 1 && Math.abs(targetCol - preCol) <= 1) {
+        // Di chuyển 1 ô: Sử dụng col/row hiện tại thay vì preCol/preRow để hỗ trợ giả lập
+        if (Math.abs(targetRow - row) <= 1 && Math.abs(targetCol - col) <= 1) {
             return isValidSquare(targetCol, targetRow);
         }
 
         // NHẬP THÀNH
-        if (!moved && targetRow == preRow) {
+        if (!moved && targetRow == row) {
             // Nhập thành phải (Kingside)
-            if (targetCol == preCol + 2 && !pieceIsOnStraightline(preCol + 3, targetRow)) {
-                return GameController.simPieces.stream().anyMatch(p -> p.type == Type.ROOK &&
-                        p.color == this.color && p.col == preCol + 3 && !p.moved);
+            if (targetCol == col + 2 && !pieceIsOnStraightline(col + 3, targetRow)) {
+                Piece rook = GameController.simPieces.stream()
+                        .filter(p -> p.type == Type.ROOK && p.color == this.color && p.col == col + 3 && !p.moved)
+                        .findFirst().orElse(null);
+                if (rook != null) {
+                    GameController.castlingP = rook; // QUAN TRỌNG: Gán để Xe di chuyển theo
+                    return true;
+                }
             }
             // Nhập thành trái (Queenside)
-            if (targetCol == preCol - 2 && !pieceIsOnStraightline(preCol - 4, targetRow)) {
-                // Kiểm tra ô cột B (col 1) phải trống
-                boolean bSquareEmpty = GameController.simPieces.stream().noneMatch(p -> p.row == preRow && p.col == preCol - 3);
-                return bSquareEmpty && GameController.simPieces.stream().anyMatch(p -> p.type == Type.ROOK &&
-                        p.color == this.color && p.col == preCol - 4 && !p.moved);
+            if (targetCol == col - 2 && !pieceIsOnStraightline(col - 4, targetRow)) {
+                boolean bSquareEmpty = GameController.simPieces.stream().noneMatch(p -> p.row == row && p.col == col - 3);
+                Piece rook = GameController.simPieces.stream()
+                        .filter(p -> p.type == Type.ROOK && p.color == this.color && p.col == col - 4 && !p.moved)
+                        .findFirst().orElse(null);
+                if (bSquareEmpty && rook != null) {
+                    GameController.castlingP = rook; // QUAN TRỌNG
+                    return true;
+                }
             }
         }
         return false;

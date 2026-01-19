@@ -67,8 +67,11 @@ public abstract class Piece implements Serializable {
     public boolean isValidSquare(int targetCol, int targetRow) {
         hittingP = gettingHitP(targetCol, targetRow);
         if (hittingP == null) return true;
-        // KHÔNG cho phép ăn Vua và không ăn quân cùng màu
-        if (hittingP.color != this.color && hittingP.type != Type.KING) return true;
+
+        // CHẶN TUYỆT ĐỐI: Không ăn quân cùng màu và KHÔNG ăn Vua
+        if (hittingP.color != this.color && hittingP.type != Type.KING) {
+            return true;
+        }
         hittingP = null;
         return false;
     }

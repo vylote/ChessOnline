@@ -1,7 +1,7 @@
 package view;
 
 import controller.core.GameController;
-import controller.DiscoveryService;
+import controller.service.DiscoveryService;
 
 import javax.swing.*;
 import java.awt.*;

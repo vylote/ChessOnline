@@ -1,4 +1,4 @@
-package controller;
+package utility;
 
 import controller.core.GameController;
 import model.*;
