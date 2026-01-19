@@ -37,10 +37,11 @@ public class GameController implements Runnable {
     public boolean isMultiplayer, isServer, gameOver, isDraw, isAiThinking, isTimeRunning, isClickedToMove, promotion;
     private long lastSecond = System.currentTimeMillis();
     public float toastAlpha = 0;
-    public String toastMsg = "";
     public NetworkManager netManager;
     private String myName = "PC Player";
     private PlayerProfile opponentProfile;
+    private int winnerColor;
+    public int getWinnerColor() { return winnerColor; }
 
     // --- 3. PHÓ PHÒNG (HANDLERS) ---
     private final ChessLogicEngine engine = new ChessLogicEngine();
@@ -60,14 +61,13 @@ public class GameController implements Runnable {
     // =========================================================
     // NHÓM 1: FIX LỖI GAMEPANEL (ISKINGINCHECK, PAUSEGAME...)
     // =========================================================
-
     public boolean isKingInCheck() {
-        // Luôn kiểm tra cho currentColor (người đang đến lượt)
         boolean ck = engine.isKingInCheck(simPieces, currentColor);
         if (ck) {
             updateCheckingPiece(currentColor);
         } else {
-            checkingP = null; // Nếu hết chiếu thì xóa màu đỏ ngay
+            // Nếu không còn chiếu, phải reset để mất ô màu đỏ trên bàn cờ
+            checkingP = null;
         }
         return ck;
     }
@@ -85,30 +85,35 @@ public class GameController implements Runnable {
     }
 
     public void makeAiMove(String uci) {
-        // 1. DỌN DẸP RÁC: Xóa mọi nước đi recommend cũ của người chơi
+        // 1. Luôn mở khóa AI ngay khi nhận được phản hồi
         isAiThinking = false;
         isClickedToMove = false;
         activeP = null;
         validMoves.clear();
 
         if (uci == null || uci.length() < 4) {
-            System.out.println("AI không tìm thấy nước đi!");
+            System.err.println("AI không tìm thấy nước đi! Đang yêu cầu AI tính lại...");
+            // Nếu lỗi, thử yêu cầu AI tính lại sau 1s để tránh treo lượt
+            new Thread(() -> { try { Thread.sleep(1000); finalizeTurn(); } catch(Exception ignored){}}).start();
             return;
         }
 
-        // 2. Chuyển đổi tọa độ (giữ nguyên logic của bạn)
         int sc = uci.charAt(0) - 'a';
         int sr = 8 - Character.getNumericValue(uci.charAt(1));
         int tc = uci.charAt(2) - 'a';
         int tr = 8 - Character.getNumericValue(uci.charAt(3));
 
-        // 3. Thực hiện nước đi AI
         activeP = simPieces.stream()
                 .filter(p -> p.col == sc && p.row == sr)
                 .findFirst().orElse(null);
 
         if (activeP != null) {
             executeMove(tc, tr, true);
+        } else {
+            // PHÒNG NGỪA: Nếu không tìm thấy quân cờ tại tọa độ AI chỉ định
+            System.err.println("AI chỉ định sai quân cờ: " + uci + ". Reset lượt AI.");
+            // Quay lại finalizeTurn để AI nhận diện lại bàn cờ mới nhất (FEN mới)
+            finalizeTurn();
         }
     }
 
@@ -145,16 +150,14 @@ public class GameController implements Runnable {
         playMoveSound(isCapture, castlingP != null, check);
 
         if (check) {
-            toastAlpha = 1.0f;
-            toastMsg = (currentColor == WHITE ? "WHITE" : "BLACK") + " CHECKS!";
+
             if (engine.isCheckMate(simPieces, opponentColor)) {
                 triggerEndGame(false, currentColor); // Chiếu bí -> Thắng
             } else { finalizeTurn(); }
         } else {
             // YÊU CẦU: Stalemate xử THUA
             if (engine.isStaleMate(simPieces, opponentColor)) {
-                toastAlpha = 1.0f;
-                toastMsg = "STALEMATE - YOU LOSE!";
+
                 triggerEndGame(false, currentColor);
             } else { finalizeTurn(); }
         }
@@ -309,6 +312,10 @@ public class GameController implements Runnable {
     private void update() {
         if (gameOver || GameState.currentState != State.PLAYING) return;
         if (toastAlpha > 0) toastAlpha -= 0.016f;
+
+        // QUAN TRỌNG: Quét trạng thái chiếu liên tục để cập nhật ô đỏ
+        isKingInCheck();
+
         long now = System.currentTimeMillis();
         if (isTimeRunning && now - lastSecond >= 1000) {
             timeLeft--;
@@ -439,16 +446,32 @@ public class GameController implements Runnable {
 
     public void handleTimeOut() {
         if (gameOver) return;
-        if (isKingInCheck()) triggerEndGame(false, (currentColor == 0 ? 1 : 0));
-        else finalizeTurn();
+
+        // 1. Xác định người thắng là đối thủ của người vừa hết giờ
+        int winner = (currentColor == WHITE) ? BLACK : WHITE;
+
+
+        // 3. Kết thúc game và phát âm thanh thắng cuộc của phe kia
+        triggerEndGame(false, winner);
     }
 
-    public void triggerEndGame(boolean d, Integer w) {
+    public void triggerEndGame(boolean d, Integer winner) {
+        this.winnerColor = winner;
         gameOver = true;
         isTimeRunning = false;
         isDraw = d;
         GameState.setState(State.GAME_OVER);
-        audioManager.playSFX(d ? "/audio/sfx/draw.wav" : "/audio/sfx/game_over.wav");
+
+        if (d) {
+            audioManager.playSFX("/audio/sfx/move.wav"); // Hòa
+        } else {
+            // Gọi chính xác file âm thanh bạn đã chuẩn bị trong res/audio/sfx/
+            if (winner == WHITE) {
+                audioManager.playSFX("/audio/sfx/white_win.wav");
+            } else {
+                audioManager.playSFX("/audio/sfx/black_win.wav");
+            }
+        }
     }
 
     private void resetState() {

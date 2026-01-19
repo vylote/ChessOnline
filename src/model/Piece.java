@@ -68,8 +68,8 @@ public abstract class Piece implements Serializable {
         hittingP = gettingHitP(targetCol, targetRow);
         if (hittingP == null) return true;
 
-        // CHẶN TUYỆT ĐỐI: Không ăn quân cùng màu và KHÔNG ăn Vua
-        if (hittingP.color != this.color && hittingP.type != Type.KING) {
+        // PHẢI cho phép canMove trả về true khi mục tiêu là Vua địch để Engine nhận diện được "Chiếu"
+        if (hittingP.color != this.color) {
             return true;
         }
         hittingP = null;

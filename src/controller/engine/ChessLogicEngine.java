@@ -25,12 +25,18 @@ public class ChessLogicEngine {
     }
 
     private boolean hasNoLegalMoves(CopyOnWriteArrayList<Piece> simPieces, int color) {
-        for (Piece p : simPieces)
+        for (Piece p : simPieces) {
             if (p.color == color) {
-                for (int r = 0; r < 8; r++)
-                    for (int c = 0; c < 8; c++)
-                        if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r, simPieces, color)) return false;
+                for (int r = 0; r < 8; r++) {
+                    for (int c = 0; c < 8; c++) {
+                        // Nếu CHỈ CẦN CÓ 1 nước đi giúp Vua an toàn, thì KHÔNG phải Checkmate
+                        if (p.canMove(c, r) && simulateMoveAndKingSafe(p, c, r, simPieces, color)) {
+                            return false;
+                        }
+                    }
+                }
             }
+        }
         return true;
     }
 

@@ -23,20 +23,16 @@ public class StockfishHandler {
         new Thread(() -> {
             String move = null;
             try {
-                // Giảm movetime xuống 500ms để AI phản hồi nhanh hơn, tránh lag luồng
+                // Đảm bảo Engine còn sống trước khi gửi FEN
                 move = client.getBestMove(fen, 500);
             } catch (Exception e) {
-                System.err.println("Lỗi Stockfish: " + e.getMessage());
+                System.err.println("Lỗi Engine Stockfish: " + e.getMessage());
+                restartEngine(); // Tự khởi động lại nếu tiến trình chết
             } finally {
                 final String finalMove = move;
                 SwingUtilities.invokeLater(() -> {
-                    if (finalMove != null) {
-                        gc.makeAiMove(finalMove);
-                    } else {
-                        // NẾU AI LỖI: Buộc phải mở khóa để người chơi đi tiếp
-                        gc.isAiThinking = false;
-                        gc.validMoves.clear();
-                    }
+                    // Luôn gọi makeAiMove dù kết quả là null để Controller xử lý kẹt lượt
+                    gc.makeAiMove(finalMove);
                 });
             }
         }).start();

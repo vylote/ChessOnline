@@ -160,12 +160,10 @@ public class GamePanel extends JPanel {
         g2.setFont(new Font("Arial", Font.BOLD, 60));
         String msg;
         if (controller.isDraw()) {
-            g2.setColor(Color.YELLOW);
             msg = "DRAW GAME";
         } else {
-            g2.setColor(Color.WHITE);
-            // Ở đây currentColor là người vừa kết thúc lượt -> đối thủ thắng
-            msg = (controller.getCurrentColor() == GameController.WHITE) ? "BLACK WINS!" : "WHITE WINS!";
+            // winnerColor được gán từ triggerEndGame
+            msg = (controller.getWinnerColor() == GameController.WHITE) ? "WHITE WINS!" : "BLACK WINS!";
         }
         g2.drawString(msg, totalLW / 2 - g2.getFontMetrics().stringWidth(msg)/2, 250);
 
@@ -181,18 +179,40 @@ public class GamePanel extends JPanel {
     }
 
     private void drawToast(Graphics2D g2) {
-        String msg = controller.toastMsg; // Lấy tin nhắn trực tiếp từ Controller
+        if (controller.getToastAlpha() <= 0) return;
+
+        // 1. Khai báo biến msg cục bộ và xác định nội dung dựa trên trạng thái
+        String msg = "";
+
+        if (controller.isGameOver()) {
+            if (controller.getTimeLeft() <= 0) {
+                // Hiển thị bên nào đã hết thời gian
+                msg = (controller.getCurrentColor() == GameController.WHITE ? "WHITE" : "BLACK") + " TIME OUT!";
+            } else if (controller.getSimPieces().size() > 0) {
+                // Có thể thêm logic Stalemate ở đây nếu cần
+                msg = "GAME OVER";
+            }
+        } else if (controller.isKingInCheck()) {
+            msg = "CHECK!";
+        }
+
+        // Nếu không có nội dung thì không vẽ
         if (msg.isEmpty()) return;
 
+        // 2. Phần vẽ Graphics (Sử dụng biến msg đã khai báo ở trên)
         g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
         FontMetrics fm = g2.getFontMetrics();
         int x = (BOARD_W - fm.stringWidth(msg)) / 2;
         int y = 300;
 
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, controller.getToastAlpha()));
+
+        // Vẽ nền
         g2.setColor(new Color(0, 0, 0, 180));
         g2.fillRoundRect(x - 20, y - 35, fm.stringWidth(msg) + 40, 50, 15, 15);
-        g2.setColor(Color.WHITE);
+
+        // Vẽ chữ
+        g2.setColor(Color.YELLOW);
         g2.drawString(msg, x, y);
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
     }
@@ -201,15 +221,14 @@ public class GamePanel extends JPanel {
         int size = Board.SQUARE_SIZE;
 
         if (controller.getCheckingP() != null) {
-            // Phe bị chiếu là đối thủ của quân đang gây chiếu (checkingP)
-            int colorInCheck = (controller.getCheckingP().color == GameController.WHITE) ? GameController.BLACK : GameController.WHITE;
-            Piece king = controller.getKingByColor(colorInCheck);
+            // Phe bị chiếu chắc chắn là phe đối lập với quân đang gây chiếu
+            int victimColor = (controller.getCheckingP().color == GameController.WHITE) ? GameController.BLACK : GameController.WHITE;
+            Piece king = controller.getKingByColor(victimColor);
 
             if (king != null) {
-                g2.setColor(new Color(255, 0, 0, 180)); // Màu đỏ đậm rực rỡ
-                g2.fillRect(controller.getDisplayCol(king.col) * Board.SQUARE_SIZE,
-                        controller.getDisplayRow(king.row) * Board.SQUARE_SIZE,
-                        Board.SQUARE_SIZE, Board.SQUARE_SIZE);
+                g2.setColor(new Color(255, 0, 0, 200)); // Màu đỏ cảnh báo
+                g2.fillRect(controller.getDisplayCol(king.col) * size,
+                        controller.getDisplayRow(king.row) * size, size, size);
             }
         }
 
